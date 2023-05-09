@@ -12,6 +12,9 @@ export default class IndexSearch extends HTMLElement {
               }            
               #search-whole-container {
                 width: var(--sc-width, 500px);
+                display: flex;
+                gap: 10px;
+                justify-content: center;
               }            
               #search-input-container {
                 position: relative;

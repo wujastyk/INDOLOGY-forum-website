@@ -20,7 +20,8 @@ section.section {
 }
 
 wc-index-search {
-    width: 500px !important;
+    width: 600px;
     margin: auto;
+    background-color: green;
 }
 
