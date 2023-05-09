@@ -3,7 +3,7 @@ run-name: ${{ github.actor }} is learning GitHub Actions
 on: [push]
 jobs:
   deploy-site:
-    runs-on: alpine-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: peaceiris/actions-gh-pages@v3
         with:
