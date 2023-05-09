@@ -1,0 +1,26 @@
+body {
+    font-family: 'Palatino Linotype',sans-serif !important;
+}
+
+header {
+    background-image: linear-gradient(to right, #2c1d8c, #cac4f5);
+    padding: 20px 0;
+}
+
+h1.page-title {
+    color: #f2dc4e;
+    font-weight: bold;
+}
+
+section.section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: red;
+}
+
+wc-index-search {
+    width: 500px !important;
+    margin: auto;
+}
+
