@@ -6,20 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>INDOLOGY Forum mailing list - search interface</title>
     <link href="http://fonts.cdnfonts.com/css/palatino-linotype" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/themes/light.css" />
     <link href="css/index.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/components/input/input.js"></script>
     <script type="module" src="js/wc-index-search/index.mjs"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/solirom-cdn@2.6.2/loading-spinner/index.min.js"></script>
     <script type="module" src="js/index.js"></script>
 </head>
 
-<body class="has-background-white-ter">
+<body>
     <header>
-        <h1 class="title has-text-centered page-title">INDOLOGY Forum mailing list - search interface</h1>
+        <h1 class="title">INDOLOGY Forum mailing list - search interface</h1>
     </header>
     <section class="section">
-        <wc-index-search index-url="headwords"></wc-index-search>
+        <wc-index-search index-base-url="http://localhost:8080/words"></wc-index-search>
     </section>
     <solirom-loading-spinner></solirom-loading-spinner>
 </body>
