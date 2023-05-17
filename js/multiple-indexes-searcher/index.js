@@ -4,6 +4,7 @@ import { LitElement, css, html } from "https://cdn.jsdelivr.net/npm/lit/+esm";
 export default class MultipleIndexesSearcher extends LitElement {
     static properties = {
         indexBaseURL: { attribute: "index-base-url" },
+        _searchResultItemsNumber : {state: true},
     };
 
     static styles = css`
@@ -23,6 +24,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         } 
         div#suggestion-lists-container {
             width: var(--sc-width, 500px);
+            display: none;
         }
         div#suggestion-lists-toolbar {
             display: flex;
@@ -33,7 +35,6 @@ export default class MultipleIndexesSearcher extends LitElement {
             font-size: 14px;
         }        
         div#suggestion-lists-content {
-            hidden: true;
             display: flex;
             gap: 2px;
         } 
@@ -49,11 +50,15 @@ export default class MultipleIndexesSearcher extends LitElement {
         }
         div.suggestion-selected {
             background-color: #edebeb;
-        }  
+        }
+        div#search-result-toolbar {
+            background-color: #cac4f5;
+        }
     `;
 
     constructor() {
         super();
+        this._searchResultItemsNumber = null;
     }
 
     createRenderRoot() {
@@ -63,12 +68,12 @@ export default class MultipleIndexesSearcher extends LitElement {
 
             if (target.matches("div.suggestion")) {
                 target
-                  .parentNode
-                  .querySelectorAll("div.suggestion")
-                  .forEach((suggestionElement) => suggestionElement.classList.remove("suggestion-selected")
-                  );
+                    .parentNode
+                    .querySelectorAll("div.suggestion")
+                    .forEach((suggestionElement) => suggestionElement.classList.remove("suggestion-selected")
+                    );
                 target.classList.add("suggestion-selected");
-        
+
             }
         });
 
@@ -80,25 +85,66 @@ export default class MultipleIndexesSearcher extends LitElement {
             <div>
                 <div id="search-input-container">
                     <sl-input placeholder="Enter search string..." clearable value="Sanskrit verse similar"></sl-input>
-                    <sl-button id="suggestions" @click="${this._generateSuggestions}" variant="default" outline>Search</sl-button>
+                    <sl-button id="exact-search" @click="${this._executeExactSearch}" variant="default" outline>Search</sl-button>
                 </div>
                 <div id="suggestion-lists-container">
                     <div id="suggestion-lists-toolbar">
-                    <header>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the Search button)</header>
-                    <sl-button id="search" @click="${this._getSearchResults}" variant="default" outline>Fuzzy search</sl-button>
+                        <header>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the Search button)</header>
+                        <sl-button id="search" @click="${this._getSearchResults}" variant="default" outline>Fuzzy search</sl-button>
                     </div>
                     <div id="suggestion-lists-content"></div>
                 </div>
-                <div id="search-result-container"></div>
+                <div id="search-result-container">
+                    <div id="search-result-toolbar">
+                        <output .value=${this._searchResultItemsNumber !== null ? this._searchResultItemsNumber : ""}></header>
+                    </div>
+                    <div id="search-result-items"></div>                
+                </div>
             </div>        
         `;
     }
-    _generateSuggestions = () => {
-        let suggestionListContent = this.renderRoot?.querySelector("div#suggestion-lists-content");
-        suggestionListContent.innerHTML = "";
+    _executeExactSearch = async () => {
+        let exactMatches = new Map();
+        let exactMatchesCounter = 0;
 
         // tokenize the search string
         let searchStringTokens = this.renderRoot?.querySelector("sl-input").value.split(" ");
+        let searchStringTokenNumber = searchStringTokens.length;
+
+        // get document id-s
+        for (let searchStringToken of searchStringTokens) {
+            searchStringToken = searchStringToken.toLowerCase();
+
+            let documentIDs = await fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(searchStringToken)}`))
+                .then(async response => {
+                    if (response.status === 200) {
+                        return response.json();
+                    }
+                });
+
+            exactMatches.set(searchStringToken, documentIDs);
+            exactMatchesCounter += 1;
+        }
+
+        if (searchStringTokenNumber === exactMatchesCounter) {
+            let commonDocumentIDs = this._intersectDocumentIDs(Array.from(exactMatches.values()));
+
+            let searchResultContainer = this.renderRoot?.querySelector("div#search-result-items");
+            searchResultContainer.innerHTML = "";
+            let searchResultHTMLString = commonDocumentIDs.map((docId) => {
+                return this.resultItemTemplate(docId);
+            }).join("");
+
+            this._searchResultItemsNumber = `${commonDocumentIDs.length} entries`;
+            searchResultContainer.innerHTML = searchResultHTMLString;
+        } else {
+
+        }
+
+        console.log(exactMatches);
+
+        let suggestionListContent = this.renderRoot?.querySelector("div#suggestion-lists-content");
+        suggestionListContent.innerHTML = "";
 
         // generate the form controls for suggestions
         searchStringTokens.forEach(token => {
@@ -126,61 +172,61 @@ export default class MultipleIndexesSearcher extends LitElement {
             .querySelectorAll("div.suggestion-selected")]
             .map((selectedSuggestion) => selectedSuggestion.textContent.toLowerCase())
             .filter(Boolean);
-          let selectedSuggestionsNumber = selectedSuggestions.length;
-  
-          let commonInvertedIndexes = [];
-          let firstSelectedSuggestion = null;
-          let secondSelectedSuggestion = null;
-  
-          // successive lookup for inverted indexes
-          switch (selectedSuggestionsNumber) {
+        let selectedSuggestionsNumber = selectedSuggestions.length;
+
+        let commonInvertedIndexes = [];
+        let firstSelectedSuggestion = null;
+        let secondSelectedSuggestion = null;
+
+        // successive lookup for inverted indexes
+        switch (selectedSuggestionsNumber) {
             // case with one selected suggestions
             case 1:
-              let selectedSuggestion = selectedSuggestions[0];
-              commonInvertedIndexes = await fetch(new URL(`${this.indexBaseURL}/${this.getRelativeURL(selectedSuggestion)}/${selectedSuggestion}.json`))
-                .then(response => response.json());
-            break;
+                let selectedSuggestion = selectedSuggestions[0];
+                commonInvertedIndexes = await fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(selectedSuggestion)}/${selectedSuggestion}.json`))
+                    .then(response => response.json());
+                break;
             // case with two selected suggestions
             case 2:
-              firstSelectedSuggestion = selectedSuggestions[0];
-              secondSelectedSuggestion = selectedSuggestions[1];
-              commonInvertedIndexes = await this.intersection_destructive([
-                fetch(new URL(`${this.indexBaseURL}/${this.getRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
-                .then(response => response.json()),
-                fetch(new URL(`${this.indexBaseURL}/${this.getRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
-                .then(response => response.json())
-              ]);
-            break;
+                firstSelectedSuggestion = selectedSuggestions[0];
+                secondSelectedSuggestion = selectedSuggestions[1];
+                commonInvertedIndexes = await this._intersectTwoArraysPromises([
+                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
+                        .then(response => response.json()),
+                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
+                        .then(response => response.json())
+                ]);
+                break;
             // case with at least three selected suggestions
             default:
-              firstSelectedSuggestion = selectedSuggestions[0];
-              secondSelectedSuggestion = selectedSuggestions[1];
-              commonInvertedIndexes = await this.intersection_destructive([
-                fetch(new URL(`${this.indexBaseURL}/${this.getRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
-                .then(response => response.json()),
-                fetch(new URL(`${this.indexBaseURL}/${this.getRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
-                .then(response => response.json())
-              ]);
-  
-              for (let i = 2; i < selectedSuggestionsNumber; i++) {
-                let ithSelectedSuggestion = selectedSuggestions[i];
-                commonInvertedIndexes = await this.intersection_destructive([
-                  commonInvertedIndexes,
-                  fetch(new URL(`${this.indexBaseURL}/${this.getRelativeURL(ithSelectedSuggestion)}/${ithSelectedSuggestion}.json`))
-                  .then(response => response.json())
+                firstSelectedSuggestion = selectedSuggestions[0];
+                secondSelectedSuggestion = selectedSuggestions[1];
+                commonInvertedIndexes = await this._intersectTwoArraysPromises([
+                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
+                        .then(response => response.json()),
+                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
+                        .then(response => response.json())
                 ]);
-              }
-          }
-  
-          let searchResultContainer = this.renderRoot?.querySelector("div#search-result-container");
-          searchResultContainer.innerHTML = "";
-          let searchResultHTMLString = commonInvertedIndexes.map((docId) => {
+
+                for (let i = 2; i < selectedSuggestionsNumber; i++) {
+                    let ithSelectedSuggestion = selectedSuggestions[i];
+                    commonInvertedIndexes = await this._intersectTwoArraysPromises([
+                        commonInvertedIndexes,
+                        fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(ithSelectedSuggestion)}/${ithSelectedSuggestion}.json`))
+                            .then(response => response.json())
+                    ]);
+                }
+        }
+
+        let searchResultContainer = this.renderRoot?.querySelector("div#search-result-container");
+        searchResultContainer.innerHTML = "";
+        let searchResultHTMLString = commonInvertedIndexes.map((docId) => {
             return this.resultItemTemplate(docId);
-          }).join("");
-          searchResultContainer.innerHTML = searchResultHTMLString;
-          
-  
-          // other types of lookups for inverted indexes        
+        }).join("");
+        searchResultContainer.innerHTML = searchResultHTMLString;
+
+
+        // other types of lookups for inverted indexes        
     }
 
     suggestionTemplate = (data) => `<div class="suggestion">${data}</div>`
@@ -189,7 +235,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     resultItemTemplate = (data) => `<div class="result-item">${data}</div>`
 
-    intersection_destructive = async (promises) => {
+    _intersectTwoArraysPromises = async (promises) => {
         const [aPromise, bPromise] = await Promise.allSettled(promises);
 
         let result = [];
@@ -208,16 +254,75 @@ export default class MultipleIndexesSearcher extends LitElement {
         return result;
     }
 
-    getRelativeURL = (selectedSuggestion) => {
-        let firstCharacter = selectedSuggestion.slice(0, 1);
+    _intersectTwoArrays = (arrays) => {
+        let result = [];
+        let a = arrays[0];
+        let b = arrays[1];
+
+        while (a.length > 0 && b.length > 0) {
+            if (a[0] < b[0]) { a.shift(); }
+            else if (a[0] > b[0]) { b.shift(); }
+            else /* they're equal */ {
+                result.push(a.shift());
+                b.shift();
+            }
+        }
+
+        return result;
+    }
+
+    _intersectDocumentIDs = (documentIDsets) => {
+        let setsNumber = documentIDsets.length;
+        let commonDocumentIDs = [];
+        let firstSet = null;
+        let secondSet = null;        
+
+        // successive lookup for inverted indexes
+        switch (setsNumber) {
+            // case with one selected suggestions
+            case 1:
+                commonDocumentIDs = documentIDsets[0];
+                break;
+            // case with two selected suggestions
+            case 2:
+                firstSet = documentIDsets[0];
+                secondSet = documentIDsets[1];
+                commonDocumentIDs = this._intersectTwoArrays([
+                    firstSet,
+                    secondSet
+                ]);
+                break;
+            // case with at least three selected suggestions
+            default:
+                firstSet = documentIDsets[0];
+                secondSet = documentIDsets[1];
+                commonDocumentIDs = this._intersectTwoArrays([
+                    firstSet,
+                    secondSet
+                ]);
+
+                for (let i = 2; i < setsNumber; i++) {
+                    let ithSelectedSuggestion = documentIDsets[i];
+                    commonDocumentIDs = this._intersectTwoArrays([
+                        commonDocumentIDs,
+                        ithSelectedSuggestion
+                    ]);
+                }
+        }
+
+        return commonDocumentIDs;
+    }
+
+    _calculateRelativeURL = (token) => {
+        let firstCharacter = token.slice(0, 1);
         let suggestionRelativeURL = firstCharacter + "/";
 
-        let secondCharacter = selectedSuggestion.slice(1, 2);
+        let secondCharacter = token.slice(1, 2);
         if (secondCharacter !== "") {
             suggestionRelativeURL = suggestionRelativeURL + secondCharacter;
         }
 
-        return suggestionRelativeURL;
+        return `${suggestionRelativeURL}/${token}.json`;
     }
 }
 
