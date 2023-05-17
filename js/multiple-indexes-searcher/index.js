@@ -78,17 +78,18 @@ export default class MultipleIndexesSearcher extends LitElement {
     render() {
         return html`
             <div>
-            <div id="search-input-container">
-                <sl-input placeholder="Enter search string..." clearable value="Sanskrit verse similar"></sl-input>
-                <sl-button id="suggestions" @click="${this._generateSuggestions}" variant="default" outline>Search</sl-button>
-            </div>
-            <div id="suggestion-lists-container">
-                <div id="suggestion-lists-toolbar">
-                <header>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the Search button)</header>
-                <sl-button id="search" @click="${this._getSearchResults}" variant="default" outline>Fuzzy search</sl-button>
+                <div id="search-input-container">
+                    <sl-input placeholder="Enter search string..." clearable value="Sanskrit verse similar"></sl-input>
+                    <sl-button id="suggestions" @click="${this._generateSuggestions}" variant="default" outline>Search</sl-button>
                 </div>
-                <div id="suggestion-lists-content"></div>
-            </div>
+                <div id="suggestion-lists-container">
+                    <div id="suggestion-lists-toolbar">
+                    <header>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the Search button)</header>
+                    <sl-button id="search" @click="${this._getSearchResults}" variant="default" outline>Fuzzy search</sl-button>
+                    </div>
+                    <div id="suggestion-lists-content"></div>
+                </div>
+                <div id="search-result-container"></div>
             </div>        
         `;
     }
@@ -171,7 +172,12 @@ export default class MultipleIndexesSearcher extends LitElement {
               }
           }
   
-          console.log(commonInvertedIndexes);
+          let searchResultContainer = this.renderRoot?.querySelector("div#search-result-container");
+          searchResultContainer.innerHTML = "";
+          let searchResultHTMLString = commonInvertedIndexes.map((docId) => {
+            return this.resultItemTemplate(docId);
+          }).join("");
+          searchResultContainer.innerHTML = searchResultHTMLString;
           
   
           // other types of lookups for inverted indexes        
@@ -180,6 +186,8 @@ export default class MultipleIndexesSearcher extends LitElement {
     suggestionTemplate = (data) => `<div class="suggestion">${data}</div>`
 
     suggestionListTemplate = (data) => `<div class="suggestion-list">${data}</div>`
+
+    resultItemTemplate = (data) => `<div class="result-item">${data}</div>`
 
     intersection_destructive = async (promises) => {
         const [aPromise, bPromise] = await Promise.allSettled(promises);
