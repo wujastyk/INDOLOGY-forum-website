@@ -1,10 +1,38 @@
 import "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/shoelace.js";
 import { LitElement, css, html } from "https://cdn.jsdelivr.net/npm/lit/+esm";
+import "https://solirom.gitlab.io/web-components/pagination-toolbar/index.js";
 
 export default class MultipleIndexesSearcher extends LitElement {
     static properties = {
-        indexBaseURL: { attribute: "index-base-url" },
-        _searchResultItemsNumber : {state: true},
+        /** Base URL for words index. */
+        indexBaseURL: {
+            attribute: "index-base-url"
+        },
+        /** Base IRI for documents. */
+        documentsBaseIRI: {
+            attribute: "documents-base-iri"
+        },
+        /** URL for file with relative IRIs for documents. */
+        documentRelativeIRIsURL: {
+            attribute: "document-relative-iris-url"
+        },
+        /** Per-page limit of the elements. */
+        paginationLimit: {
+            type: Number,
+            reflect: true,
+            attribute: "pagination-limit"
+        },
+        /** The list with document relative IRIs */
+        _documentRelativeIRIs: {
+            type: Array,
+        },
+        /** The list of IDs of the documents, resulted after intersections of ID lists for words. */
+        _resultDocumentIDs: {
+            type: Array,
+        },
+        _searchResultItemsNumber: {
+            state: true
+        },
     };
 
     static styles = css`
@@ -51,18 +79,70 @@ export default class MultipleIndexesSearcher extends LitElement {
         div.suggestion-selected {
             background-color: #edebeb;
         }
+        div#search-result-container {
+            width: var(--sc-width, 500px);
+        }
         div#search-result-toolbar {
-            background-color: #cac4f5;
+            background-color: #e9e9ed;
+            margin: 3px 0;
+            padding: 5px 0;
+            border-radius: 5px;
+        }
+        sl-progress-bar {
+            display: none;
+        }
+        div.result-item:nth-child(odd) {
+            background-color: #edebeb;
+        }
+        div.result-item-content {
+            overflow: scroll;
+            height: 200px;
+            padding: 5px;
+            margin-bottom: 10px;
+            border: 1px dashed black;
+            text-overflow: ellipsis;
+            text-align: justify;
         }
     `;
 
     constructor() {
         super();
+
         this._searchResultItemsNumber = null;
+        this._resultDocumentIDs = [];
     }
+
+    async firstUpdated() {
+        await fetch(this.documentRelativeIRIsURL)
+            .then(r => r.json())
+            .then(async data => {
+                this._documentRelativeIRIs = data;
+            });
+    }
+
+    get _searchStringInput() {
+        return this.renderRoot?.querySelector("sl-input");
+    }
+
+    get _searchResultContainer() {
+        return this.renderRoot?.querySelector("div#search-result-items");
+    }
+
+    get _suggestionListContent() {
+        return this.renderRoot?.querySelector("div#suggestion-lists-content");
+    }
+
+    get _paginationToolbar() {
+        return this.renderRoot?.querySelector("sc-pagination-toolbar");
+    }
+
+    get _progressBar() {
+        return this.renderRoot?.querySelector("sl-progress-bar");
+    }    
 
     createRenderRoot() {
         const root = super.createRenderRoot();
+
         root.addEventListener("click", (event) => {
             const target = event.target;
 
@@ -73,9 +153,20 @@ export default class MultipleIndexesSearcher extends LitElement {
                     .forEach((suggestionElement) => suggestionElement.classList.remove("suggestion-selected")
                     );
                 target.classList.add("suggestion-selected");
-
             }
         });
+
+        root.addEventListener("sc-pagination-toolbar:page-changed", async (event) => {
+            let newPage = event.detail.newPage;
+
+            await this._displayResultsPage(newPage);
+
+            this._progressBar.style.display = "none";
+        });
+
+        root.addEventListener("sc-pagination-toolbar:page-to-be-changed", (event) => {
+            this._progressBar.style.display = "inline";
+        });        
 
         return root;
     }
@@ -96,8 +187,10 @@ export default class MultipleIndexesSearcher extends LitElement {
                 </div>
                 <div id="search-result-container">
                     <div id="search-result-toolbar">
-                        <output .value=${this._searchResultItemsNumber !== null ? this._searchResultItemsNumber : ""}></header>
+                        <output .value=${this._searchResultItemsNumber !== null ? this._searchResultItemsNumber + ' results' : "0 results"}></header>
                     </div>
+                    <sc-pagination-toolbar page="1" total="${this._searchResultItemsNumber !== null ? this._searchResultItemsNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
+                    <sl-progress-bar style="--height: 6px;" indeterminate></sl-progress-bar>
                     <div id="search-result-items"></div>                
                 </div>
             </div>        
@@ -107,8 +200,12 @@ export default class MultipleIndexesSearcher extends LitElement {
         let exactMatches = new Map();
         let exactMatchesCounter = 0;
 
+        // reset form controls
+        this._paginationToolbar.page = 1;
+        this._searchResultContainer.innerHTML = "";
+
         // tokenize the search string
-        let searchStringTokens = this.renderRoot?.querySelector("sl-input").value.split(" ");
+        let searchStringTokens = this._searchStringInput.value.trim().split(" ");
         let searchStringTokenNumber = searchStringTokens.length;
 
         // get document id-s
@@ -126,25 +223,20 @@ export default class MultipleIndexesSearcher extends LitElement {
             exactMatchesCounter += 1;
         }
 
+        // case when all the search strings exist
         if (searchStringTokenNumber === exactMatchesCounter) {
-            let commonDocumentIDs = this._intersectDocumentIDs(Array.from(exactMatches.values()));
+            this._resultDocumentIDs = this._intersectDocumentIDs(Array.from(exactMatches.values()));
+            this._searchResultItemsNumber = this._resultDocumentIDs.length;
 
-            let searchResultContainer = this.renderRoot?.querySelector("div#search-result-items");
-            searchResultContainer.innerHTML = "";
-            let searchResultHTMLString = commonDocumentIDs.map((docId) => {
-                return this.resultItemTemplate(docId);
-            }).join("");
-
-            this._searchResultItemsNumber = `${commonDocumentIDs.length} entries`;
-            searchResultContainer.innerHTML = searchResultHTMLString;
+            this._displayResultsPage(1);
         } else {
+            // case when not all the search strings exist
 
         }
 
-        console.log(exactMatches);
+        //console.log(exactMatches);
 
-        let suggestionListContent = this.renderRoot?.querySelector("div#suggestion-lists-content");
-        suggestionListContent.innerHTML = "";
+        this._suggestionListContent.innerHTML = "";
 
         // generate the form controls for suggestions
         searchStringTokens.forEach(token => {
@@ -153,22 +245,20 @@ export default class MultipleIndexesSearcher extends LitElement {
             let suggestionsHTMLString = suggestions.map(suggestion => this.suggestionTemplate(suggestion)).join("");
             suggestionsHTMLString = this.suggestionListTemplate(suggestionsHTMLString);
 
-            suggestionListContent.insertAdjacentHTML("beforeend", suggestionsHTMLString);
+            this._suggestionListContent.insertAdjacentHTML("beforeend", suggestionsHTMLString);
 
-            suggestionListContent.hidden = false;
+            this._suggestionListContent.hidden = false;
         });
 
         // select the first suggestion from each list
-        suggestionListContent
+        this._suggestionListContent
             .querySelectorAll("div.suggestion-list > div.suggestion:first-of-type")
             .forEach((suggestionElement) => suggestionElement.classList.add("suggestion-selected")
             );
     }
 
     _getSearchResults = async () => {
-        let suggestionListContent = this.renderRoot?.querySelector("div#suggestion-lists-content");
-
-        let selectedSuggestions = [...suggestionListContent
+        let selectedSuggestions = [...this._suggestionListContent
             .querySelectorAll("div.suggestion-selected")]
             .map((selectedSuggestion) => selectedSuggestion.textContent.toLowerCase())
             .filter(Boolean);
@@ -218,22 +308,52 @@ export default class MultipleIndexesSearcher extends LitElement {
                 }
         }
 
-        let searchResultContainer = this.renderRoot?.querySelector("div#search-result-container");
-        searchResultContainer.innerHTML = "";
+        this._searchResultContainer.innerHTML = "";
         let searchResultHTMLString = commonInvertedIndexes.map((docId) => {
-            return this.resultItemTemplate(docId);
+            return this._resultItemTemplate(docId);
         }).join("");
-        searchResultContainer.innerHTML = searchResultHTMLString;
+        this._searchResultContainer.innerHTML = searchResultHTMLString;
 
 
         // other types of lookups for inverted indexes        
+    }
+
+    async _displayResultsPage(newPageNumber) {
+        let startIndex = (newPageNumber - 1) * this.paginationLimit;
+        let endIndex = newPageNumber * this.paginationLimit;
+        let currentPageDocumentIDs = this._resultDocumentIDs.slice(startIndex, endIndex);
+
+        // generate the HTML string with the results on the current page
+        let searchResultHTMLString = "";
+        let currentPageDocumentIDsIndex = 0;
+        for (let currentPageDocumentID of currentPageDocumentIDs) {
+            let documentRelativeIRI = this._documentRelativeIRIs[currentPageDocumentID];
+            let textURL = new URL(documentRelativeIRI, this.documentsBaseIRI);
+            let text = await fetch(textURL).then((response) => response.text());
+            let resultHTMLString = this._resultItemTemplate({
+                currentPageDocumentID,
+                "index": startIndex + 1 + currentPageDocumentIDsIndex,
+                documentRelativeIRI,
+                text
+            });            
+            searchResultHTMLString += resultHTMLString;
+
+            currentPageDocumentIDsIndex++;
+        }
+
+        this._searchResultContainer.innerHTML = searchResultHTMLString;
     }
 
     suggestionTemplate = (data) => `<div class="suggestion">${data}</div>`
 
     suggestionListTemplate = (data) => `<div class="suggestion-list">${data}</div>`
 
-    resultItemTemplate = (data) => `<div class="result-item">${data}</div>`
+    _resultItemTemplate = (data) =>
+        `<div class="result-item">
+            <div class="result-item-toolbar">${data.index}. ${data.documentRelativeIRI.split("-")[0]}</div>
+            <div class="result-item-content">${data.text}</div>
+        </div>
+        `
 
     _intersectTwoArraysPromises = async (promises) => {
         const [aPromise, bPromise] = await Promise.allSettled(promises);
@@ -275,7 +395,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         let setsNumber = documentIDsets.length;
         let commonDocumentIDs = [];
         let firstSet = null;
-        let secondSet = null;        
+        let secondSet = null;
 
         // successive lookup for inverted indexes
         switch (setsNumber) {

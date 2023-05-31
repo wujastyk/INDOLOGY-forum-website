@@ -9,7 +9,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/themes/light.css" />
     <link href="css/index.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.js"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/components/input/input.js"></script>
+    <script type="module"
+        src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/components/input/input.js"></script>
     <script type="module" src="js/multiple-indexes-searcher/index.js"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/solirom-cdn@2.6.2/loading-spinner/index.min.js"></script>
     <script type="module" src="js/index.js"></script>
@@ -20,7 +21,10 @@
         <h1 class="title">INDOLOGY Forum mailing list - search interface</h1>
     </header>
     <section class="section">
-        <multiple-indexes-searcher index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/words"></multiple-indexes-searcher>
+        <multiple-indexes-searcher index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/words"
+            documents-base-iri="https://wujastyk.github.io/INDOLOGY-forum-data/data/"
+            document-relative-iris-url="https://wujastyk.github.io/INDOLOGY-forum-data/relative-paths-to-documents.json"
+            pagination-limit="10"></multiple-indexes-searcher>
     </section>
     <solirom-loading-spinner></solirom-loading-spinner>
 </body>
