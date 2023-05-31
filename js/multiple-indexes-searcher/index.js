@@ -175,7 +175,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         return html`
             <div>
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value="Sanskrit verse similar"></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
                     <sl-button id="exact-search" @click="${this._executeExactSearch}" variant="default" outline>Search</sl-button>
                 </div>
                 <div id="suggestion-lists-container">
@@ -197,6 +197,8 @@ export default class MultipleIndexesSearcher extends LitElement {
         `;
     }
     _executeExactSearch = async () => {
+        this._progressBar.style.display = "inline";
+
         let exactMatches = new Map();
         let exactMatchesCounter = 0;
 
@@ -216,6 +218,8 @@ export default class MultipleIndexesSearcher extends LitElement {
                 .then(async response => {
                     if (response.status === 200) {
                         return response.json();
+                    } else {
+                        alert(`The term '${searchStringToken}' was not found by using exact search, which is the only one currently available. This means that either the term does not exist, or it is mispelled within the database. Fuzzy search is working on, to deal with the latter case.`);
                     }
                 });
 
