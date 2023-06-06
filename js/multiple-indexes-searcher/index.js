@@ -4,9 +4,13 @@ import "https://solirom.gitlab.io/web-components/pagination-toolbar/index.js";
 
 export default class MultipleIndexesSearcher extends LitElement {
     static properties = {
-        /** Base URL for words index. */
-        indexBaseURL: {
-            attribute: "index-base-url"
+        /** Base URL for the exact index for words. */
+        exactIndexBaseURL: {
+            attribute: "exact-index-base-url"
+        },
+        /** Base URL for the ngram index for words. */
+        ngramIndexBaseURL: {
+            attribute: "ngram-index-base-url"
         },
         /** Base IRI for documents. */
         documentsBaseIRI: {
@@ -32,6 +36,10 @@ export default class MultipleIndexesSearcher extends LitElement {
         },
         _searchResultItemsNumber: {
             state: true
+        },
+        /** The list of words, for lookup by word's index in list. */
+        _words: {
+            type: Array,
         },
     };
 
@@ -110,13 +118,21 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         this._searchResultItemsNumber = null;
         this._resultDocumentIDs = [];
+        this._words = [];
     }
 
     async firstUpdated() {
+        // get the documents' relative IRIs
         await fetch(this.documentRelativeIRIsURL)
             .then(r => r.json())
             .then(async data => {
                 this._documentRelativeIRIs = data;
+            });
+        // get the words
+        await fetch(new URL("words.json", this.ngramIndexBaseURL))
+            .then(response => response.json())
+            .then(async data => {
+                this._words = data;
             });
     }
 
@@ -138,7 +154,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     get _progressBar() {
         return this.renderRoot?.querySelector("sl-progress-bar");
-    }    
+    }
 
     createRenderRoot() {
         const root = super.createRenderRoot();
@@ -166,7 +182,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         root.addEventListener("sc-pagination-toolbar:page-to-be-changed", (event) => {
             this._progressBar.style.display = "inline";
-        });        
+        });
 
         return root;
     }
@@ -175,7 +191,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         return html`
             <div>
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="sanskits ayurveda"></sl-input>
                     <sl-button id="exact-search" @click="${this._executeExactSearch}" variant="default" outline>Search</sl-button>
                 </div>
                 <div id="suggestion-lists-container">
@@ -199,8 +215,10 @@ export default class MultipleIndexesSearcher extends LitElement {
     _executeExactSearch = async () => {
         this._progressBar.style.display = "inline";
 
+        this._suggestionListContent.innerHTML = "";
+
         let exactMatches = new Map();
-        let exactMatchesCounter = 0;
+        let allExactMatchesFlag = true;
 
         // reset form controls
         this._paginationToolbar.page = 1;
@@ -208,39 +226,39 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // tokenize the search string
         let searchStringTokens = this._searchStringInput.value.trim().split(" ");
-        let searchStringTokenNumber = searchStringTokens.length;
 
         // get document id-s
         for (let searchStringToken of searchStringTokens) {
             searchStringToken = searchStringToken.toLowerCase();
 
-            let documentIDs = await fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(searchStringToken)}`))
+            let documentIDs = await fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(searchStringToken)}`))
                 .then(async response => {
                     if (response.status === 200) {
                         return response.json();
                     } else {
-                        alert(`The term '${searchStringToken}' was not found by using exact search, which is the only one currently available. This means that either the term does not exist, or it is mispelled within the database. Fuzzy search is working on, to deal with the latter case.`);
+                        allExactMatchesFlag = false;
+                        //alert(`The term '${searchStringToken}' was not found by using exact search, which is the only one currently available. This means that either the term does not exist, or it is mispelled within the database. Fuzzy search is working on, to deal with the latter case.`);
                     }
                 });
 
             exactMatches.set(searchStringToken, documentIDs);
-            exactMatchesCounter += 1;
         }
 
         // case when all the search strings exist
-        if (searchStringTokenNumber === exactMatchesCounter) {
+        if (allExactMatchesFlag) {
             this._resultDocumentIDs = this._intersectDocumentIDs(Array.from(exactMatches.values()));
             this._searchResultItemsNumber = this._resultDocumentIDs.length;
 
             this._displayResultsPage(1);
         } else {
+            for (let [word, documentIDs] of exactMatches) {
+                if (documentIDs === undefined) {
+                    console.log(this._getNGrams(word, 2, "_"));
+                }
+            }
             // case when not all the search strings exist
 
         }
-
-        //console.log(exactMatches);
-
-        this._suggestionListContent.innerHTML = "";
 
         // generate the form controls for suggestions
         searchStringTokens.forEach(token => {
@@ -277,7 +295,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             // case with one selected suggestions
             case 1:
                 let selectedSuggestion = selectedSuggestions[0];
-                commonInvertedIndexes = await fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(selectedSuggestion)}/${selectedSuggestion}.json`))
+                commonInvertedIndexes = await fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(selectedSuggestion)}/${selectedSuggestion}.json`))
                     .then(response => response.json());
                 break;
             // case with two selected suggestions
@@ -285,9 +303,9 @@ export default class MultipleIndexesSearcher extends LitElement {
                 firstSelectedSuggestion = selectedSuggestions[0];
                 secondSelectedSuggestion = selectedSuggestions[1];
                 commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
                         .then(response => response.json()),
-                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
                         .then(response => response.json())
                 ]);
                 break;
@@ -296,9 +314,9 @@ export default class MultipleIndexesSearcher extends LitElement {
                 firstSelectedSuggestion = selectedSuggestions[0];
                 secondSelectedSuggestion = selectedSuggestions[1];
                 commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
                         .then(response => response.json()),
-                    fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
                         .then(response => response.json())
                 ]);
 
@@ -306,7 +324,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     let ithSelectedSuggestion = selectedSuggestions[i];
                     commonInvertedIndexes = await this._intersectTwoArraysPromises([
                         commonInvertedIndexes,
-                        fetch(new URL(`${this.indexBaseURL}/${this._calculateRelativeURL(ithSelectedSuggestion)}/${ithSelectedSuggestion}.json`))
+                        fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(ithSelectedSuggestion)}/${ithSelectedSuggestion}.json`))
                             .then(response => response.json())
                     ]);
                 }
@@ -339,7 +357,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                 "index": startIndex + 1 + currentPageDocumentIDsIndex,
                 documentRelativeIRI,
                 text
-            });            
+            });
             searchResultHTMLString += resultHTMLString;
 
             currentPageDocumentIDsIndex++;
@@ -447,6 +465,16 @@ export default class MultipleIndexesSearcher extends LitElement {
         }
 
         return `${suggestionRelativeURL}/${token}.json`;
+    }
+
+    _getNGrams = (s, len, paddingToken) => {
+        s = s.toLowerCase() + paddingToken.repeat(len - 1);
+        let v = new Array(s.length - len + 1);
+        for (let i = 0; i < v.length; i++) {
+            v[i] = s.slice(i, i + len);
+        }
+
+        return v;
     }
 }
 
