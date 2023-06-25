@@ -1,12 +1,18 @@
 import "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/shoelace.js";
 import { LitElement, css, html } from "https://cdn.jsdelivr.net/npm/lit/+esm";
 import "https://solirom.gitlab.io/web-components/pagination-toolbar/index.js";
+import k_combinations from "../ngram-index-searcher/combinations.js";
+import Searcher from "./searcher.js";
 
 export default class MultipleIndexesSearcher extends LitElement {
     static properties = {
         /** Base URL for the exact index for words. */
-        exactIndexBaseURL: {
-            attribute: "exact-index-base-url"
+        fulltextIndexBaseURL: {
+            attribute: "fulltext-index-base-url"
+        },
+        /** Base URL for the FST index for words. */
+        fstIndexBaseURL: {
+            attribute: "fst-index-base-url"
         },
         /** Base URL for the ngram index for words. */
         ngramIndexBaseURL: {
@@ -30,16 +36,39 @@ export default class MultipleIndexesSearcher extends LitElement {
         _documentRelativeIRIs: {
             type: Array,
         },
-        /** The list of IDs of the documents, resulted after intersections of ID lists for words. */
-        _resultDocumentIDs: {
+        /** The list of IDs of the matching documents, resulted after intersections of ID lists for words. */
+        _matchingDocumentIDs: {
             type: Array,
         },
-        _searchResultItemsNumber: {
+        _matchingDocumentNumber: {
             state: true
         },
+        /** Variables for the global searcher */
+        _searcher: {
+            type: Object,
+        },
+        /** Variables for the NGram index */
         /** The list of words, for lookup by word's index in list. */
         _words: {
             type: Array,
+        },
+        /** The threshold for the ngrams similarity. */
+        _ngram_similarity_threshold: {
+            type: Number,
+            attribute: "ngram-similarity-threshold"
+        },
+        /** Variables for the NGram index */
+        /** The FST index. */
+        _fstIndex: {
+            type: Array,
+        },
+        /** The FST inverted index. */
+        _fstInvertedIndex: {
+            type: Array,
+        },
+        /** The FST searcher */
+        _fstSearcher: {
+            type: Object,
         },
     };
 
@@ -49,7 +78,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             flex-direction: column; 
             gap: 5px; 
         }            
-        #search-input-container {
+        div#search-input-container {
             width: var(--sc-width, 500px);
             display: flex;
             gap: 10px;
@@ -61,21 +90,27 @@ export default class MultipleIndexesSearcher extends LitElement {
         div#suggestion-lists-container {
             width: var(--sc-width, 500px);
             display: none;
+            height: 220px;
         }
         div#suggestion-lists-toolbar {
+            background-color: #e9e9ed;
             display: flex;
+            justify-content: space-around;
             align-items: center;
-            padding: 5px 0;
+            padding: 5px;
         }
         div#suggestion-lists-toolbar > header {
             font-size: 14px;
         }        
-        div#suggestion-lists-content {
+        div#suggestion-lists-contents {
+            height: 170px;
             display: flex;
+            justify-content: center;
             gap: 2px;
+            overflow: scroll; 
         } 
         div.suggestion-list {
-            flex-grow: 1;
+            min-width: 100px;
         }
         div.suggestion {
             margin: 3px 0;
@@ -116,24 +151,43 @@ export default class MultipleIndexesSearcher extends LitElement {
     constructor() {
         super();
 
-        this._searchResultItemsNumber = null;
-        this._resultDocumentIDs = [];
+        this._matchingDocumentNumber = null;
+        this._matchingDocumentIDs = [];
+
+        // Variables for the NGram index
         this._words = [];
+        this._ngram_similarity_threshold = 0.4;
+
+        // Variables for the FST index
+        this._fstIndex = [];
+        this.__fstInvertedIndex = [];
+
+        // Variables for the global searcher
+        this._searcher = {};
     }
 
     async firstUpdated() {
         // get the documents' relative IRIs
-        await fetch(this.documentRelativeIRIsURL)
-            .then(r => r.json())
+        await fetch(new URL(this.documentRelativeIRIsURL), {
+            mode: "cors",
+        })
+            .then(response => response.json())
             .then(async data => {
                 this._documentRelativeIRIs = data;
             });
+
         // get the words
-        await fetch(new URL("words.json", this.ngramIndexBaseURL))
+        await fetch(new URL("words.json", this.fstIndexBaseURL), {
+            mode: "cors",
+        })
             .then(response => response.json())
             .then(async data => {
                 this._words = data;
             });
+
+        // create and initialize the searcher
+        this._searcher = new Searcher(this.fulltextIndexBaseURL, this.fstIndexBaseURL, this._words)
+        this._searcher.init();
     }
 
     get _searchStringInput() {
@@ -144,8 +198,12 @@ export default class MultipleIndexesSearcher extends LitElement {
         return this.renderRoot?.querySelector("div#search-result-items");
     }
 
+    get _suggestionListsContainer() {
+        return this.renderRoot?.querySelector("div#suggestion-lists-container");
+    }
+
     get _suggestionListContent() {
-        return this.renderRoot?.querySelector("div#suggestion-lists-content");
+        return this.renderRoot?.querySelector("div#suggestion-lists-contents");
     }
 
     get _paginationToolbar() {
@@ -175,7 +233,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         root.addEventListener("sc-pagination-toolbar:page-changed", async (event) => {
             let newPage = event.detail.newPage;
 
-            await this._displayResultsPage(newPage);
+            await this._displaySearchResultsPage(newPage);
 
             this._progressBar.style.display = "none";
         });
@@ -191,95 +249,119 @@ export default class MultipleIndexesSearcher extends LitElement {
         return html`
             <div>
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value="sanskits ayurveda"></sl-input>
-                    <sl-button id="exact-search" @click="${this._executeExactSearch}" variant="default" outline>Search</sl-button>
+                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
+                    <sl-button id="exact-search" @click="${this._simpleFuzzySearch}" variant="default" outline>Search</sl-button>
                 </div>
                 <div id="suggestion-lists-container">
                     <div id="suggestion-lists-toolbar">
-                        <header>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the Search button)</header>
-                        <sl-button id="search" @click="${this._getSearchResults}" variant="default" outline>Fuzzy search</sl-button>
+                        <header>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the <i>Search by suggestions</i> button)</header>
+                        <sl-button id="search" @click="${this._searchBySuggestions}" variant="default" outline>Search by suggestions</sl-button>
                     </div>
-                    <div id="suggestion-lists-content"></div>
+                    <div id="suggestion-lists-contents"></div>
                 </div>
                 <div id="search-result-container">
                     <div id="search-result-toolbar">
-                        <output .value=${this._searchResultItemsNumber !== null ? this._searchResultItemsNumber + ' results' : "0 results"}></header>
+                        <output .value=${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber + ' results' : "0 results"}></header>
                     </div>
-                    <sc-pagination-toolbar page="1" total="${this._searchResultItemsNumber !== null ? this._searchResultItemsNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
+                    <sc-pagination-toolbar page="1" total="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
                     <sl-progress-bar style="--height: 6px;" indeterminate></sl-progress-bar>
                     <div id="search-result-items"></div>                
                 </div>
             </div>        
         `;
     }
-    _executeExactSearch = async () => {
-        this._progressBar.style.display = "inline";
-
-        this._suggestionListContent.innerHTML = "";
-
-        let exactMatches = new Map();
-        let allExactMatchesFlag = true;
+    _simpleFuzzySearch = async () => {
+        // reset the searcher
+        this._searcher.reset();
 
         // reset form controls
+        this._progressBar.style.display = "inline";
         this._paginationToolbar.page = 1;
         this._searchResultContainer.innerHTML = "";
+        this._suggestionListContent.innerHTML = "";
 
-        // tokenize the search string
+        // process the search string (currently, only by tokenisation)
         let searchStringTokens = this._searchStringInput.value.trim().split(" ");
 
-        // get document id-s
-        for (let searchStringToken of searchStringTokens) {
-            searchStringToken = searchStringToken.toLowerCase();
-
-            let documentIDs = await fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(searchStringToken)}`))
-                .then(async response => {
-                    if (response.status === 200) {
-                        return response.json();
-                    } else {
-                        allExactMatchesFlag = false;
-                        //alert(`The term '${searchStringToken}' was not found by using exact search, which is the only one currently available. This means that either the term does not exist, or it is mispelled within the database. Fuzzy search is working on, to deal with the latter case.`);
-                    }
-                });
-
-            exactMatches.set(searchStringToken, documentIDs);
-        }
+        // execute the exact search and get the matching IDs
+        this._searcher.setTerms(searchStringTokens);
+        await this._searcher.executeSimpleFuzzySearch();
 
         // case when all the search strings exist
-        if (allExactMatchesFlag) {
-            this._resultDocumentIDs = this._intersectDocumentIDs(Array.from(exactMatches.values()));
-            this._searchResultItemsNumber = this._resultDocumentIDs.length;
-
-            this._displayResultsPage(1);
-        } else {
-            for (let [word, documentIDs] of exactMatches) {
-                if (documentIDs === undefined) {
-                    console.log(this._getNGrams(word, 2, "_"));
+        if (this._searcher.allExactMatches) {
+            let exactMatchingDocumentIDs = [];
+            let suggestionStructures = new Map();
+            this._searcher.termStructures.forEach((termStructure) => {
+                if (termStructure.isExactMatch) {
+                    exactMatchingDocumentIDs.push(termStructure.simple_fuzzy_suggestions.get(termStructure.term));
+                    suggestionStructures.set(termStructure.term, termStructure.simple_fuzzy_suggestions);
                 }
+            });
+            this._matchingDocumentIDs = this._intersectIDs(exactMatchingDocumentIDs);
+            this._matchingDocumentNumber = this._matchingDocumentIDs.length;
+
+            // display the paginated search results
+            await this._displaySearchResultsPage(1);
+
+            // display the suggestions
+            this._displaySuggestions(suggestionStructures);
+        } else {
+            for (let token of Array.from(this._searcher.fuzzyMatches.keys())) {
+                // calculate the ngrams
+                let ngrams = this._getNGrams(token, 2, "_");
+
+                // get the word IDs for the calculated ngrams
+                let resultWordIDs = new Map();
+                for (let ngram of ngrams) {
+                    let wordIDs = await fetch(new URL(`${this.ngramIndexBaseURL}/${ngram}.json`), {
+                        mode: "cors",
+                    })
+                        .then(async response => {
+                            if (response.status === 200) {
+                                return response.json();
+                            } else {
+                                return [];
+                            }
+                        });
+                    if (wordIDs.length !== 0) {
+                        resultWordIDs.set(ngram, wordIDs);
+                    }
+                }
+
+                // generate the combinations of ngrams, based on the ngram similarity threshold
+                let commonNGramsNumber = this._ngram_similarity_threshold * ngrams.length;
+                if (commonNGramsNumber - Math.trunc(commonNGramsNumber) < 0.5) {
+                    commonNGramsNumber = Math.trunc(commonNGramsNumber);
+                } else {
+                    commonNGramsNumber = Math.round(commonNGramsNumber);
+                }
+
+                let resultWordIDsCombinations = k_combinations(Array.from(resultWordIDs.keys()), commonNGramsNumber);
+
+                // get the words having combinations of ngrams that were found
+                let resultWords = [];
+                console.time("words");
+                for (let resultWordIDsCombination of resultWordIDsCombinations) {
+                    resultWordIDsCombination = resultWordIDsCombination.map(item => resultWordIDs.get(item));
+
+                    let processedResultWordIDs = this._intersectIDs(resultWordIDsCombination);
+                    if (processedResultWordIDs.length > 0) {
+                    }
+
+                    resultWords = resultWords.concat(processedResultWordIDs);
+                    //console.debug(resultWords);
+                }
+                resultWords = resultWords.map(item => this._words[item]);
+                resultWords = Array.from(new Set(resultWords));
+                console.timeEnd("words");
+                console.log(resultWords);
             }
             // case when not all the search strings exist
 
         }
-
-        // generate the form controls for suggestions
-        searchStringTokens.forEach(token => {
-            let suggestions = [token, token, token];
-
-            let suggestionsHTMLString = suggestions.map(suggestion => this.suggestionTemplate(suggestion)).join("");
-            suggestionsHTMLString = this.suggestionListTemplate(suggestionsHTMLString);
-
-            this._suggestionListContent.insertAdjacentHTML("beforeend", suggestionsHTMLString);
-
-            this._suggestionListContent.hidden = false;
-        });
-
-        // select the first suggestion from each list
-        this._suggestionListContent
-            .querySelectorAll("div.suggestion-list > div.suggestion:first-of-type")
-            .forEach((suggestionElement) => suggestionElement.classList.add("suggestion-selected")
-            );
     }
 
-    _getSearchResults = async () => {
+    _searchBySuggestions = async () => {
         let selectedSuggestions = [...this._suggestionListContent
             .querySelectorAll("div.suggestion-selected")]
             .map((selectedSuggestion) => selectedSuggestion.textContent.toLowerCase())
@@ -295,7 +377,9 @@ export default class MultipleIndexesSearcher extends LitElement {
             // case with one selected suggestions
             case 1:
                 let selectedSuggestion = selectedSuggestions[0];
-                commonInvertedIndexes = await fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(selectedSuggestion)}/${selectedSuggestion}.json`))
+                commonInvertedIndexes = await fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(selectedSuggestion)}`), {
+                    mode: "cors",
+                })
                     .then(response => response.json());
                 break;
             // case with two selected suggestions
@@ -303,9 +387,13 @@ export default class MultipleIndexesSearcher extends LitElement {
                 firstSelectedSuggestion = selectedSuggestions[0];
                 secondSelectedSuggestion = selectedSuggestions[1];
                 commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}`), {
+                        mode: "cors",
+                    })
                         .then(response => response.json()),
-                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}`), {
+                        mode: "cors",
+                    })
                         .then(response => response.json())
                 ]);
                 break;
@@ -314,9 +402,13 @@ export default class MultipleIndexesSearcher extends LitElement {
                 firstSelectedSuggestion = selectedSuggestions[0];
                 secondSelectedSuggestion = selectedSuggestions[1];
                 commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}/${firstSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}`), {
+                        mode: "cors",
+                    })
                         .then(response => response.json()),
-                    fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}/${secondSelectedSuggestion}.json`))
+                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}`), {
+                        mode: "cors",
+                    })
                         .then(response => response.json())
                 ]);
 
@@ -324,26 +416,27 @@ export default class MultipleIndexesSearcher extends LitElement {
                     let ithSelectedSuggestion = selectedSuggestions[i];
                     commonInvertedIndexes = await this._intersectTwoArraysPromises([
                         commonInvertedIndexes,
-                        fetch(new URL(`${this.exactIndexBaseURL}/${this._calculateRelativeURL(ithSelectedSuggestion)}/${ithSelectedSuggestion}.json`))
+                        fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(ithSelectedSuggestion)}`), {
+                            mode: "cors",
+                        })
                             .then(response => response.json())
                     ]);
                 }
         }
 
-        this._searchResultContainer.innerHTML = "";
-        let searchResultHTMLString = commonInvertedIndexes.map((docId) => {
-            return this._resultItemTemplate(docId);
-        }).join("");
-        this._searchResultContainer.innerHTML = searchResultHTMLString;
+        this._matchingDocumentIDs = commonInvertedIndexes;
+        this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
-
-        // other types of lookups for inverted indexes        
+        // display the paginated search results
+        this._paginationToolbar.page = 1;
+        this._paginationToolbar.total = 0;
+        await this._displaySearchResultsPage(1);      
     }
 
-    async _displayResultsPage(newPageNumber) {
+    async _displaySearchResultsPage(newPageNumber) {
         let startIndex = (newPageNumber - 1) * this.paginationLimit;
         let endIndex = newPageNumber * this.paginationLimit;
-        let currentPageDocumentIDs = this._resultDocumentIDs.slice(startIndex, endIndex);
+        let currentPageDocumentIDs = this._matchingDocumentIDs.slice(startIndex, endIndex);
 
         // generate the HTML string with the results on the current page
         let searchResultHTMLString = "";
@@ -351,7 +444,10 @@ export default class MultipleIndexesSearcher extends LitElement {
         for (let currentPageDocumentID of currentPageDocumentIDs) {
             let documentRelativeIRI = this._documentRelativeIRIs[currentPageDocumentID];
             let textURL = new URL(documentRelativeIRI, this.documentsBaseIRI);
-            let text = await fetch(textURL).then((response) => response.text());
+            let text = await fetch(textURL).then((response) => response.text(), {
+                mode: "cors",
+            });
+
             let resultHTMLString = this._resultItemTemplate({
                 currentPageDocumentID,
                 "index": startIndex + 1 + currentPageDocumentIDsIndex,
@@ -366,9 +462,35 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._searchResultContainer.innerHTML = searchResultHTMLString;
     }
 
-    suggestionTemplate = (data) => `<div class="suggestion">${data}</div>`
+    /**
+     * @param {Array.<Map>} suggestionStructures
+     */
+    _displaySuggestions(suggestionStructures) {
+        // initialize the DOMString for suggestions
+        let suggestionsDOMString = "";
 
-    suggestionListTemplate = (data) => `<div class="suggestion-list">${data}</div>`
+        // generate the form controls for suggestions
+        for (let suggestionStructure of suggestionStructures) {
+            let term = suggestionStructure[0];
+            let suggestions = Array.from(suggestionStructure[1].keys());
+
+            suggestionsDOMString += this._suggestionListTemplate(suggestions.map(suggestion => this._suggestionTemplate({term, suggestion})).join(""));
+        }
+
+        this._suggestionListContent.insertAdjacentHTML("beforeend", suggestionsDOMString);
+
+        this._suggestionListsContainer.style.display = "inline";
+    }
+
+    _suggestionTemplate = (data) => {
+        let classValue = "suggestion";
+        if (data.term === data.suggestion) {
+            classValue += " suggestion-selected";
+        }
+        return `<div class="${classValue}">${data.suggestion}</div>`;
+    }
+
+    _suggestionListTemplate = (data) => `<div class="suggestion-list">${data}</div>`
 
     _resultItemTemplate = (data) =>
         `<div class="result-item">
@@ -413,9 +535,15 @@ export default class MultipleIndexesSearcher extends LitElement {
         return result;
     }
 
-    _intersectDocumentIDs = (documentIDsets) => {
-        let setsNumber = documentIDsets.length;
-        let commonDocumentIDs = [];
+    _intersectIDs = (idSets) => {
+        // check if any of the sets in empty
+        for (let idSet of idSets) {
+            if (idSet.length === 0) {
+                return [];
+            }
+        }
+        let setsNumber = idSets.length;
+        let commonIDs = [];
         let firstSet = null;
         let secondSet = null;
 
@@ -423,36 +551,36 @@ export default class MultipleIndexesSearcher extends LitElement {
         switch (setsNumber) {
             // case with one selected suggestions
             case 1:
-                commonDocumentIDs = documentIDsets[0];
+                commonIDs = idSets[0];
                 break;
             // case with two selected suggestions
             case 2:
-                firstSet = documentIDsets[0];
-                secondSet = documentIDsets[1];
-                commonDocumentIDs = this._intersectTwoArrays([
+                firstSet = idSets[0];
+                secondSet = idSets[1];
+                commonIDs = this._intersectTwoArrays([
                     firstSet,
                     secondSet
                 ]);
                 break;
             // case with at least three selected suggestions
             default:
-                firstSet = documentIDsets[0];
-                secondSet = documentIDsets[1];
-                commonDocumentIDs = this._intersectTwoArrays([
+                firstSet = idSets[0];
+                secondSet = idSets[1];
+                commonIDs = this._intersectTwoArrays([
                     firstSet,
                     secondSet
                 ]);
 
                 for (let i = 2; i < setsNumber; i++) {
-                    let ithSelectedSuggestion = documentIDsets[i];
-                    commonDocumentIDs = this._intersectTwoArrays([
-                        commonDocumentIDs,
+                    let ithSelectedSuggestion = idSets[i];
+                    commonIDs = this._intersectTwoArrays([
+                        commonIDs,
                         ithSelectedSuggestion
                     ]);
                 }
         }
 
-        return commonDocumentIDs;
+        return commonIDs;
     }
 
     _calculateRelativeURL = (token) => {
@@ -468,7 +596,7 @@ export default class MultipleIndexesSearcher extends LitElement {
     }
 
     _getNGrams = (s, len, paddingToken) => {
-        s = s.toLowerCase() + paddingToken.repeat(len - 1);
+        s = paddingToken.repeat(len - 1) + s.toLowerCase() + paddingToken.repeat(len - 1);
         let v = new Array(s.length - len + 1);
         for (let i = 0; i < v.length; i++) {
             v[i] = s.slice(i, i + len);
@@ -479,3 +607,5 @@ export default class MultipleIndexesSearcher extends LitElement {
 }
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
+
+// tattvacintam

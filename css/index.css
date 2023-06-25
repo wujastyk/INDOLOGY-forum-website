@@ -13,15 +13,14 @@ h1.title {
     text-align: center;
 }
 
-section.section {
+section.main {
     padding-top: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-wc-index-search {
-    width: 600px;
+multiple-indexes-searcher {
+    --sc-width: 60vw;
     margin: auto;
 }
-
