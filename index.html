@@ -11,6 +11,19 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.js"></script>
     <script type="module"
         src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/components/input/input.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js"></script>
+    <script type="module">
+        await Promise.allSettled([
+            customElements.whenDefined('sl-button'),
+            customElements.whenDefined('sl-checkbox'),
+            customElements.whenDefined('sl-input'),
+            customElements.whenDefined("sl-progress-bar")
+        ]);
+
+        // Button, card, and rating are registered now! Add
+        // the `ready` class so the UI fades in.
+        document.body.classList.add('ready');
+    </script>
     <script type="module" src="js/multiple-indexes-searcher/index.js"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/solirom-cdn@2.6.2/loading-spinner/index.min.js"></script>
     <script type="module" src="js/index.js"></script>
@@ -21,17 +34,18 @@
         <h1 class="title">INDOLOGY Forum mailing list - search interface</h1>
     </header>
     <section class="main">
-        <multiple-indexes-searcher
-            fulltext-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/words-fulltext/"
-            fst-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/words-fst/"
-            ngram-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/word-ngrams/"
+        <multiple-indexes-searcher fulltext-index-base-url="http://localhost:8080/indexes/terms/so-fulltext-static/"
+            terms-fst-map-url="http://localhost:8080/indexes/terms/s-fst-map/index.fst"
+            terms-json-static-url="http://localhost:8080/indexes/terms/s-json-static/index.fst"
+            ngram-index-base-url="http://localhost:8080/indexes/terms/s-ngram-static/"
+            documents-base-iri="http://localhost:8080/data/"
+            document-relative-iris-url="http://localhost:8080/indexes/text-relative-iris/s-json-static/index.json"
             ngram-similarity-threshold="0.6"
-            documents-base-iri="https://wujastyk.github.io/INDOLOGY-forum-data/data/"
-            document-relative-iris-url="https://wujastyk.github.io/INDOLOGY-forum-data/relative-paths-to-documents.json"
             pagination-limit="10">
         </multiple-indexes-searcher>
     </section>
     <solirom-loading-spinner></solirom-loading-spinner>
 </body>
-<!-- https://wujastyk.github.io/INDOLOGY-forum-data/indexes -->
+<!-- https://wujastyk.github.io/INDOLOGY-forum-data/ -->
+
 </html>

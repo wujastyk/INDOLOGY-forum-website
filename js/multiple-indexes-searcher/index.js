@@ -1,7 +1,6 @@
 import "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/shoelace.js";
 import { LitElement, css, html } from "https://cdn.jsdelivr.net/npm/lit/+esm";
 import "https://solirom.gitlab.io/web-components/pagination-toolbar/index.js";
-import k_combinations from "../ngram-index-searcher/combinations.js";
 import Searcher from "./searcher.js";
 
 export default class MultipleIndexesSearcher extends LitElement {
@@ -10,14 +9,23 @@ export default class MultipleIndexesSearcher extends LitElement {
         fulltextIndexBaseURL: {
             attribute: "fulltext-index-base-url"
         },
-        /** Base URL for the FST index for words. */
-        fstIndexBaseURL: {
-            attribute: "fst-index-base-url"
+        /** URL for the FST index for terms. */
+        termsFSTmapURL: {
+            attribute: "terms-fst-map-url"
         },
+        /** URL for the JSON static index for terms. */
+        termsJSONstaticURL: {
+            attribute: "terms-json-static-url"
+        },        
         /** Base URL for the ngram index for words. */
         ngramIndexBaseURL: {
             attribute: "ngram-index-base-url"
         },
+        /** The threshold for the ngrams similarity. */
+        _ngram_similarity_threshold: {
+            type: Number,
+            attribute: "ngram-similarity-threshold"
+        },        
         /** Base IRI for documents. */
         documentsBaseIRI: {
             attribute: "documents-base-iri"
@@ -47,28 +55,26 @@ export default class MultipleIndexesSearcher extends LitElement {
         _searcher: {
             type: Object,
         },
-        /** Variables for the NGram index */
         /** The list of words, for lookup by word's index in list. */
         _words: {
             type: Array,
         },
-        /** The threshold for the ngrams similarity. */
-        _ngram_similarity_threshold: {
-            type: Number,
-            attribute: "ngram-similarity-threshold"
-        },
-        /** Variables for the NGram index */
         /** The FST index. */
         _fstIndex: {
-            type: Array,
-        },
-        /** The FST inverted index. */
-        _fstInvertedIndex: {
             type: Array,
         },
         /** The FST searcher */
         _fstSearcher: {
             type: Object,
+        },
+        /** The flags for search types */
+        _searchTypes: {
+            state: true,
+            type: Object,
+        },
+        /** The flag for proximity search */
+        _isProximitySearch: {
+            type: Boolean,
         },
     };
 
@@ -83,7 +89,12 @@ export default class MultipleIndexesSearcher extends LitElement {
             display: flex;
             gap: 10px;
             justify-content: center;
-        }            
+        }
+        div#search-types-container {
+            display: flex;
+            gap: 20px;
+            justify-content: space-evenly;
+        }              
         sl-input { 
             width: 400px;              
         } 
@@ -94,27 +105,28 @@ export default class MultipleIndexesSearcher extends LitElement {
         }
         div#suggestion-lists-toolbar {
             background-color: #e9e9ed;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
             padding: 5px;
+            font-size: 14px;
         }
         div#suggestion-lists-toolbar > header {
-            font-size: 14px;
+            display: flex;            
+            justify-content: space-around;
+            align-items: center;            
         }        
         div#suggestion-lists-contents {
             height: 170px;
             display: flex;
             justify-content: center;
-            gap: 2px;
+            gap: 7px;
             overflow: scroll; 
         } 
         div.suggestion-list {
-            min-width: 100px;
+            width: 100px;
         }
         div.suggestion {
             margin: 3px 0;
             padding: 2px;
+            overflow-wrap: break-word;
         }
         div.suggestion:hover {
             background-color: #edebeb;
@@ -155,15 +167,26 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._matchingDocumentIDs = [];
 
         // Variables for the NGram index
-        this._words = [];
         this._ngram_similarity_threshold = 0.4;
+        this._words = [];
 
         // Variables for the FST index
         this._fstIndex = [];
-        this.__fstInvertedIndex = [];
 
         // Variables for the global searcher
         this._searcher = {};
+
+        // flags
+        this._isProximitySearch = false;
+        this._searchTypes = {
+            "prefix": false,
+            "levenstein_1": false,
+            "levenstein_2": false,
+            "ngram": true,
+        };
+
+        // add event listeners
+        this.addEventListener("sl-change", (event) => this._toggleSearchTypes(event));
     }
 
     async firstUpdated() {
@@ -177,7 +200,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             });
 
         // get the words
-        await fetch(new URL("words.json", this.fstIndexBaseURL), {
+        await fetch(new URL("index.json", this.termsJSONstaticURL), {
             mode: "cors",
         })
             .then(response => response.json())
@@ -186,8 +209,11 @@ export default class MultipleIndexesSearcher extends LitElement {
             });
 
         // create and initialize the searcher
-        this._searcher = new Searcher(this.fulltextIndexBaseURL, this.fstIndexBaseURL, this._words)
+        this._searcher = new Searcher(this.fulltextIndexBaseURL, this.termsFSTmapURL, this.ngramIndexBaseURL, this._ngram_similarity_threshold, this._words)
         this._searcher.init();
+
+        // initialize the mark resolver
+        this._markInstance = new Mark(this.renderRoot?.querySelector("div#search-result-items"));
     }
 
     get _searchStringInput() {
@@ -233,7 +259,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         root.addEventListener("sc-pagination-toolbar:page-changed", async (event) => {
             let newPage = event.detail.newPage;
 
-            await this._displaySearchResultsPage(newPage);
+            await this._displaySearchResultsPage(newPage, this._searcher.markTerms);
 
             this._progressBar.style.display = "none";
         });
@@ -249,19 +275,29 @@ export default class MultipleIndexesSearcher extends LitElement {
         return html`
             <div>
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
-                    <sl-button id="exact-search" @click="${this._simpleFuzzySearch}" variant="default" outline>Search</sl-button>
+                    <sl-input placeholder="Enter search string..." clearable value="&quot;yoga&quot;"></sl-input>
+                    <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
+                </div>
+                <div id="search-types-container">
+                    <label>Search types:</label>
+                    <sl-checkbox value="exact" disabled checked>exact</sl-checkbox>
+                    <sl-checkbox value="prefix">prefix</sl-checkbox>
+                    <sl-checkbox value="levenstein_1">Levenstein, 1 letter</sl-checkbox>
+                    <sl-checkbox value="levenstein_2">Levenstein, 2 letters</sl-checkbox>
+                    <sl-checkbox value="ngram">ngram</sl-checkbox>
                 </div>
                 <div id="suggestion-lists-container">
                     <div id="suggestion-lists-toolbar">
-                        <header>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the <i>Search by suggestions</i> button)</header>
-                        <sl-button id="search" @click="${this._searchBySuggestions}" variant="default" outline>Search by suggestions</sl-button>
+                        <header>
+                            <span>Suggestion lists (one list for each search term; select suggestions in desired combinations, and press the <i>Search by suggestions</i> button)</span>
+                            <sl-button id="search" @click="${this._searchBySuggestions}" variant="default" outline>Search by suggestions</sl-button>
+                        </header>
                     </div>
                     <div id="suggestion-lists-contents"></div>
                 </div>
                 <div id="search-result-container">
                     <div id="search-result-toolbar">
-                        <output .value=${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber + ' results' : "0 results"}></header>
+                        <output .value=${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber + " results" : "0 results"}></header>
                     </div>
                     <sc-pagination-toolbar page="1" total="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
                     <sl-progress-bar style="--height: 6px;" indeterminate></sl-progress-bar>
@@ -270,7 +306,9 @@ export default class MultipleIndexesSearcher extends LitElement {
             </div>        
         `;
     }
-    _simpleFuzzySearch = async () => {
+    _search = async () => {
+        // some initializations
+
         // reset the searcher
         this._searcher.reset();
 
@@ -280,85 +318,60 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._searchResultContainer.innerHTML = "";
         this._suggestionListContent.innerHTML = "";
 
+        // get the search string
+        let searchString = this._searchStringInput.value.trim();
+
+        // test if this is a proximity search
+        if ((searchString.startsWith("\"") && searchString.endsWith("\"")) || searchString.contains(("NEAR/"))) {
+            this._isProximitySearch = true;
+        }
+        //console.log(this._isProximitySearch);
+        //console.log(searchString);
+
         // process the search string (currently, only by tokenisation)
-        let searchStringTokens = this._searchStringInput.value.trim().split(" ");
+        searchString = searchString.replaceAll("\"", "");
+        let searchStringTokens = searchString.split(" ");
 
-        // execute the exact search and get the matching IDs
-        this._searcher.setTerms(searchStringTokens);
-        await this._searcher.executeSimpleFuzzySearch();
 
-        // case when all the search strings exist
+
+        // execute the selected searches and get the matching IDs
+        this._searcher.terms = searchStringTokens;
+        await this._searcher.executeSearch(this._searchTypes);
+
+        // case when there exist an exact match for each search string
         if (this._searcher.allExactMatches) {
             let exactMatchingDocumentIDs = [];
-            let suggestionStructures = new Map();
             this._searcher.termStructures.forEach((termStructure) => {
-                if (termStructure.isExactMatch) {
-                    exactMatchingDocumentIDs.push(termStructure.simple_fuzzy_suggestions.get(termStructure.term));
-                    suggestionStructures.set(termStructure.term, termStructure.simple_fuzzy_suggestions);
-                }
+                exactMatchingDocumentIDs.push([...termStructure.suggestions.get(termStructure.term)]);
             });
-            this._matchingDocumentIDs = this._intersectIDs(exactMatchingDocumentIDs);
+            this._matchingDocumentIDs = this._searcher._intersectIDs(exactMatchingDocumentIDs);
+
             this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
             // display the paginated search results
-            await this._displaySearchResultsPage(1);
+            await this._displaySearchResultsPage(1, this._searcher.markTerms);
 
-            // display the suggestions
-            this._displaySuggestions(suggestionStructures);
-        } else {
-            for (let token of Array.from(this._searcher.fuzzyMatches.keys())) {
-                // calculate the ngrams
-                let ngrams = this._getNGrams(token, 2, "_");
-
-                // get the word IDs for the calculated ngrams
-                let resultWordIDs = new Map();
-                for (let ngram of ngrams) {
-                    let wordIDs = await fetch(new URL(`${this.ngramIndexBaseURL}/${ngram}.json`), {
-                        mode: "cors",
-                    })
-                        .then(async response => {
-                            if (response.status === 200) {
-                                return response.json();
-                            } else {
-                                return [];
-                            }
-                        });
-                    if (wordIDs.length !== 0) {
-                        resultWordIDs.set(ngram, wordIDs);
-                    }
-                }
-
-                // generate the combinations of ngrams, based on the ngram similarity threshold
-                let commonNGramsNumber = this._ngram_similarity_threshold * ngrams.length;
-                if (commonNGramsNumber - Math.trunc(commonNGramsNumber) < 0.5) {
-                    commonNGramsNumber = Math.trunc(commonNGramsNumber);
-                } else {
-                    commonNGramsNumber = Math.round(commonNGramsNumber);
-                }
-
-                let resultWordIDsCombinations = k_combinations(Array.from(resultWordIDs.keys()), commonNGramsNumber);
-
-                // get the words having combinations of ngrams that were found
-                let resultWords = [];
-                console.time("words");
-                for (let resultWordIDsCombination of resultWordIDsCombinations) {
-                    resultWordIDsCombination = resultWordIDsCombination.map(item => resultWordIDs.get(item));
-
-                    let processedResultWordIDs = this._intersectIDs(resultWordIDsCombination);
-                    if (processedResultWordIDs.length > 0) {
-                    }
-
-                    resultWords = resultWords.concat(processedResultWordIDs);
-                    //console.debug(resultWords);
-                }
-                resultWords = resultWords.map(item => this._words[item]);
-                resultWords = Array.from(new Set(resultWords));
-                console.timeEnd("words");
-                console.log(resultWords);
+            // if it is any fuzzy search, display the suggestions
+            if (this._searcher.isFuzzySearch) {
+                let suggestionStructures = new Map();
+                this._searcher.termStructures.forEach((termStructure) => {
+                    suggestionStructures.set(termStructure.term, termStructure.suggestions);
+                });
+    
+                this._displaySuggestions(suggestionStructures);
             }
-            // case when not all the search strings exist
+        } else {
 
         }
+    }
+
+    _toggleSearchTypes = (event) => {
+        let target = event.originalTarget;
+        let value = target.value;
+        let checked = target.checked;
+
+        this._searchTypes[value] = checked;
+        console.log(this._searchTypes);
     }
 
     _searchBySuggestions = async () => {
@@ -430,10 +443,10 @@ export default class MultipleIndexesSearcher extends LitElement {
         // display the paginated search results
         this._paginationToolbar.page = 1;
         this._paginationToolbar.total = 0;
-        await this._displaySearchResultsPage(1);      
+        await this._displaySearchResultsPage(1, this._searcher.markTerms);
     }
 
-    async _displaySearchResultsPage(newPageNumber) {
+    async _displaySearchResultsPage(newPageNumber, terms) {
         let startIndex = (newPageNumber - 1) * this.paginationLimit;
         let endIndex = newPageNumber * this.paginationLimit;
         let currentPageDocumentIDs = this._matchingDocumentIDs.slice(startIndex, endIndex);
@@ -460,12 +473,33 @@ export default class MultipleIndexesSearcher extends LitElement {
         }
 
         this._searchResultContainer.innerHTML = searchResultHTMLString;
+
+        // highlight the search results
+        this._markInstance.mark(terms, {
+            "accuracy": {
+                "value": "exactly",
+                "limiters": [
+                    '„', '“',
+                    // punctuation-regex › regex101
+                    // https://www.npmjs.com/package/punctuation-regex
+                    '-', '‒', '–', '—', '―', '|', '$', '&', '~', '=',
+                    '\\', '/', '⁄', '@', '+', '*', '!', '?', '(', '{', '[', ']',
+                    '}', ')', '<', '>', '‹', '›', '«', '»', '.', ';', ':', '^',
+                    '‘', '’', '“', '”', "'", '"', ',', '،', '、', '`', '·', '•',
+                    '†', '‡', '°', '″', '¡', '¿', '※', '#', '№', '÷', '×', '%',
+                    '‰', '−', '‱', '¶', '′', '‴', '§', '_', '‖', '¦',
+                ],
+            },
+        });
     }
 
     /**
      * @param {Array.<Map>} suggestionStructures
      */
     _displaySuggestions(suggestionStructures) {
+        // initialize the container
+        this._suggestionListContent.innerHTML = "";
+
         // initialize the DOMString for suggestions
         let suggestionsDOMString = "";
 
@@ -474,7 +508,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             let term = suggestionStructure[0];
             let suggestions = Array.from(suggestionStructure[1].keys());
 
-            suggestionsDOMString += this._suggestionListTemplate(suggestions.map(suggestion => this._suggestionTemplate({term, suggestion})).join(""));
+            suggestionsDOMString += this._suggestionListTemplate(suggestions.map(suggestion => this._suggestionTemplate({ term, suggestion })).join(""));
         }
 
         this._suggestionListContent.insertAdjacentHTML("beforeend", suggestionsDOMString);
@@ -518,71 +552,6 @@ export default class MultipleIndexesSearcher extends LitElement {
         return result;
     }
 
-    _intersectTwoArrays = (arrays) => {
-        let result = [];
-        let a = arrays[0];
-        let b = arrays[1];
-
-        while (a.length > 0 && b.length > 0) {
-            if (a[0] < b[0]) { a.shift(); }
-            else if (a[0] > b[0]) { b.shift(); }
-            else /* they're equal */ {
-                result.push(a.shift());
-                b.shift();
-            }
-        }
-
-        return result;
-    }
-
-    _intersectIDs = (idSets) => {
-        // check if any of the sets in empty
-        for (let idSet of idSets) {
-            if (idSet.length === 0) {
-                return [];
-            }
-        }
-        let setsNumber = idSets.length;
-        let commonIDs = [];
-        let firstSet = null;
-        let secondSet = null;
-
-        // successive lookup for inverted indexes
-        switch (setsNumber) {
-            // case with one selected suggestions
-            case 1:
-                commonIDs = idSets[0];
-                break;
-            // case with two selected suggestions
-            case 2:
-                firstSet = idSets[0];
-                secondSet = idSets[1];
-                commonIDs = this._intersectTwoArrays([
-                    firstSet,
-                    secondSet
-                ]);
-                break;
-            // case with at least three selected suggestions
-            default:
-                firstSet = idSets[0];
-                secondSet = idSets[1];
-                commonIDs = this._intersectTwoArrays([
-                    firstSet,
-                    secondSet
-                ]);
-
-                for (let i = 2; i < setsNumber; i++) {
-                    let ithSelectedSuggestion = idSets[i];
-                    commonIDs = this._intersectTwoArrays([
-                        commonIDs,
-                        ithSelectedSuggestion
-                    ]);
-                }
-        }
-
-        return commonIDs;
-    }
-
     _calculateRelativeURL = (token) => {
         let firstCharacter = token.slice(0, 1);
         let suggestionRelativeURL = firstCharacter + "/";
@@ -593,16 +562,6 @@ export default class MultipleIndexesSearcher extends LitElement {
         }
 
         return `${suggestionRelativeURL}/${token}.json`;
-    }
-
-    _getNGrams = (s, len, paddingToken) => {
-        s = paddingToken.repeat(len - 1) + s.toLowerCase() + paddingToken.repeat(len - 1);
-        let v = new Array(s.length - len + 1);
-        for (let i = 0; i < v.length; i++) {
-            v[i] = s.slice(i, i + len);
-        }
-
-        return v;
     }
 }
 

@@ -1,4 +1,5 @@
 import init, { Searcher as FstSearcher } from "https://solirom.gitlab.io/search-engines/search-engine/search_engine.js";
+import k_combinations from "../ngram-index-searcher/combinations.js";
 // https://solirom.gitlab.io/web-components/fst-index-search/search_engine.mjs
 await init();
 
@@ -7,32 +8,49 @@ await init();
  * @property {Array.<string>} terms  
  * @property {Array.<Term>} termStructures
  * @property {boolean} allExactMatches
+ * @property {boolean} isFuzzySearch
  * @property {URL} exactIndexBaseURL
- * @property {Array.<string>} words
+ * @property {URL} termsFSTmapURL
+ * @property {URl} ngramIndexBaseURL
+ * @property {Number} ngramSimilarityThreshold
+ * @property {Array.<string>} _words
  */
 export default class Searcher {
-    constructor(exactIndexBaseURL, fstIndexBaseURL, fstWords) {
-        this.terms = [];
+    constructor(exactIndexBaseURL, termsFSTmapURL, ngramIndexBaseURL, ngramSimilarityThreshold, _words) {
+        this._terms = [];
+        this._markTerms = "";
         this.termStructures = [];
         this.allExactMatches = true;
+        this.isFuzzySearch = false;
         this.exactIndexBaseURL = exactIndexBaseURL;
-        this.fstIndexBaseURL = fstIndexBaseURL;
-        this.fstWords  = fstWords;
+        this.termsFSTmapURL = termsFSTmapURL;
+        this.ngramIndexBaseURL = ngramIndexBaseURL;
+        this.ngramSimilarityThreshold = ngramSimilarityThreshold;
+        this._words = _words;
+    }
+
+    set terms(value) {
+        this._terms = value;
+    }
+
+    get terms() {
+        return this._terms;
+    }
+
+    set markTerms(value) {
+        this._markTerms = value;
+    }
+
+    get markTerms() {
+        return this._markTerms;
     }
 
     init = async () => {
         // get the FST file
-        await fetch(new URL("index.fst", this.fstIndexBaseURL))
+        await fetch(new URL("index.fst", this.termsFSTmapURL))
             .then(response => response.arrayBuffer())
             .then(async data => {
                 this._fstSearcher = new FstSearcher(new Uint8Array(data));
-            });
-
-        // get the FST inverted index and initialize the FST searcher
-        await fetch(new URL("index.json", this.fstIndexBaseURL))
-            .then(response => response.json())
-            .then(async data => {
-                this._fstInvertedIndex = data;
             });
     }
 
@@ -42,54 +60,130 @@ export default class Searcher {
         this.allExactMatches = true;
     }
 
-    setTerms(terms) {
-        this.terms = terms;
-    }
+    executeSearch = async (searchTypes) => {
+        // initializations 
+        this.markTerms = this.terms.join(" ");
 
-    executeSimpleFuzzySearch = async () => {
-        // get matching document IDs
+        // execute the selected searches and get the matching IDs
         const promises = this.terms.map(async term => {
+            // initialisations
+            let prefix_search_results = [];
+            let levenstein_1_search_results = [];
+            let levenstein_2_search_results = [];
+            let ngramSearchResults = [];
+
             term = term.toLowerCase();
             let termStructure = new Term(term);
 
-            // execute the prefix and levenstein searches
-            let prefix_search_results = this._fstSearcher.prefix_search(term).map(item => parseInt(item));
-            let levenstein_1_search_results = this._fstSearcher.levenstein_1_search(term).map(item => parseInt(item));
-            let levenstein_2_search_results = this._fstSearcher.levenstein_2_search(term).map(item => parseInt(item));
-
-            // aggregate the suggestion id-s
-            let suggestionIDs = new Set(Array.from([prefix_search_results, levenstein_1_search_results, levenstein_2_search_results]).flat());
-
-            // aggregate the suggestions
-            let suggestions = Array.from(suggestionIDs).map(item => this.fstWords[item]);
-            suggestions.sort();
-            for (let suggestion of suggestions) {
-                termStructure.simple_fuzzy_suggestions.set(suggestion, []);
+            // execute the prefix search, if selected
+            if (searchTypes.prefix) {
+                prefix_search_results = this._fstSearcher.prefix_search(term).map(item => parseInt(item));
+                this.isFuzzySearch = true;
             }
 
-            // execute the exact search
-            let documentIDs = await fetch(new URL(this.calculateRelativeURL(term), this.exactIndexBaseURL), { mode: "cors" })
+            // execute the levenstein_1 search, if selected
+            if (searchTypes.levenstein_1) {
+                levenstein_1_search_results = this._fstSearcher.levenstein_1_search(term).map(item => parseInt(item));
+                this.isFuzzySearch = true;
+            }
+
+            // execute the levenstein_2 search, if selected
+            if (searchTypes.levenstein_2) {
+                levenstein_2_search_results = this._fstSearcher.levenstein_2_search(term).map(item => parseInt(item));
+                this.isFuzzySearch = true;
+            }
+
+            // execute the ngram search, if selected
+            if (searchTypes.ngram) {
+                ngramSearchResults = await this._ngramSearch(term);
+
+                this.isFuzzySearch = true;
+            }
+
+            // aggregate the suggestions id-s
+            let suggestionIDs = new Set(Array.from([prefix_search_results, levenstein_1_search_results, levenstein_2_search_results, ngramSearchResults]).flat());
+
+            // aggregate the suggestions
+            let suggestions = Array.from(suggestionIDs).map(item => this._words[item]).sort();
+            for (let suggestion of suggestions) {
+                termStructure.suggestions.set(suggestion, []);
+            }
+
+            // finally, execute the exact search
+            await fetch(new URL(this._calculateRelativeURL(term), this.exactIndexBaseURL), { mode: "cors" })
                 .then(async response => {
                     if (response.status === 200) {
-                        return response.json();
+                        let data = await response.json();
+                        termStructure.suggestions.set(term, Object.keys(data));
                     } else {
                         this.allExactMatches = false;
                         termStructure.isExactMatch = false;
                     }
                 });
-            if (termStructure.isExactMatch) {
-                termStructure.simple_fuzzy_suggestions.set(term, documentIDs);
-            }
 
             return termStructure;
         });
 
-        // aggregate the search results
+        // aggregate the search results, for all terms
         let aggregatedMatches = await Promise.all(promises);
         aggregatedMatches.forEach(item => this.termStructures.push(item));
     }
 
-    calculateRelativeURL = (token) => {
+    _ngramSearch = async (term) => {
+        // calculate the ngrams
+        let ngrams = this._getNGrams(term, 2, "_");
+
+        // get the word IDs for the calculated ngrams
+        let ngramWordIDs = new Map();
+        for (let ngram of ngrams) {
+            let wordIDs = await fetch(new URL(`${ngram}.json`, this.ngramIndexBaseURL), {
+                mode: "cors",
+            })
+                .then(async response => {
+                    if (response.status === 200) {
+                        return response.json();
+                    } else {
+                        return [];
+                    }
+                });
+
+            if (wordIDs.length !== 0) {
+                ngramWordIDs.set(ngram, wordIDs);
+            }
+        }
+
+        // generate the combinations of ngrams, based on the ngram similarity threshold
+        let commonNGramsNumber = this.ngramSimilarityThreshold * ngrams.length;
+        if (commonNGramsNumber - Math.trunc(commonNGramsNumber) < 0.5) {
+            commonNGramsNumber = Math.trunc(commonNGramsNumber);
+        } else {
+            commonNGramsNumber = Math.round(commonNGramsNumber);
+        }
+
+        let ngramsCombinations = k_combinations(Array.from(ngramWordIDs.keys()), commonNGramsNumber);
+
+        // get the words having combinations of ngrams that were found
+        let resultWords = [];
+        console.time("words");
+        for (let ngramsCombination of ngramsCombinations) {
+            let resultWordIDs = ngramsCombination.map(item => Array.from(ngramWordIDs.get(item)));
+
+            let processedResultWordIDs = this._intersectIDs(resultWordIDs);
+            if (processedResultWordIDs.length > 0) {
+            }
+
+            resultWords = resultWords.concat(processedResultWordIDs);
+        }
+        console.timeEnd("words");
+
+        //resultWords = resultWords.map(item => this._words[item]);
+        resultWords = Array.from(new Set(resultWords));
+        resultWords.sort();
+
+        return resultWords;
+    }
+
+    _calculateRelativeURL = (token) => {
         let firstCharacter = token.slice(0, 1);
         let suggestionRelativeURL = firstCharacter + "/";
 
@@ -101,45 +195,45 @@ export default class Searcher {
         return `${suggestionRelativeURL}/${token}.json`;
     }
 
-    intersectIDs = (idSets) => {
+    _intersectIDs = (sets) => {
         // check if any of the sets in empty
-        for (let idSet of idSets) {
-            if (idSet.length === 0) {
+        for (let set of sets) {
+            if (set.length === 0) {
                 return [];
             }
         }
-        let setsNumber = idSets.length;
+        let setsNumber = sets.length;
         let commonIDs = [];
-        let firstSet = null;
-        let secondSet = null;
+        let firstSet = [];
+        let secondSet = [];
 
-        // successive lookup for inverted indexes
+        // successive lookup
         switch (setsNumber) {
-            // case with one selected suggestions
+            // case with one selected sets
             case 1:
-                commonIDs = idSets[0];
+                commonIDs = sets[0];
                 break;
-            // case with two selected suggestions
+            // case with two selected sets
             case 2:
-                firstSet = idSets[0];
-                secondSet = idSets[1];
-                commonIDs = this.intersectTwoArrays([
+                firstSet = sets[0];
+                secondSet = sets[1];
+                commonIDs = this._intersectTwoArrays([
                     firstSet,
                     secondSet
                 ]);
                 break;
-            // case with at least three selected suggestions
+            // case with at least three selected sets
             default:
-                firstSet = idSets[0];
-                secondSet = idSets[1];
-                commonIDs = this.intersectTwoArrays([
+                firstSet = sets[0];
+                secondSet = sets[1];
+                commonIDs = this._intersectTwoArrays([
                     firstSet,
                     secondSet
                 ]);
 
                 for (let i = 2; i < setsNumber; i++) {
-                    let ithSelectedSuggestion = idSets[i];
-                    commonIDs = this.intersectTwoArrays([
+                    let ithSelectedSuggestion = sets[i];
+                    commonIDs = this._intersectTwoArrays([
                         commonIDs,
                         ithSelectedSuggestion
                     ]);
@@ -149,14 +243,21 @@ export default class Searcher {
         return commonIDs;
     }
 
-    intersectTwoArrays = (arrays) => {
+    _intersectTwoArrays = (arrays) => {
         let result = [];
         let a = arrays[0];
         let b = arrays[1];
 
         while (a.length > 0 && b.length > 0) {
-            if (a[0] < b[0]) { a.shift(); }
-            else if (a[0] > b[0]) { b.shift(); }
+            let left = +a[0];
+            let right = +b[0];
+
+            if (left < right) {
+                a.shift();
+            }
+            else if (left > right) {
+                b.shift();
+            }
             else /* they're equal */ {
                 result.push(a.shift());
                 b.shift();
@@ -165,20 +266,28 @@ export default class Searcher {
 
         return result;
     }
+
+    _getNGrams = (s, len, paddingToken) => {
+        s = paddingToken.repeat(len - 1) + s.toLowerCase() + paddingToken.repeat(len - 1);
+        let v = new Array(s.length - len + 1);
+        for (let i = 0; i < v.length; i++) {
+            v[i] = s.slice(i, i + len);
+        }
+
+        return v;
+    }
 };
 
 /**
  * @typedef {Object} Term
  * @property {string} term
  * @property {boolean} isExactMatch
- * @property {Map.<string, Array.<number>>} simple_fuzzy_suggestions
- * @property {Map.<string, Array.<number>>} advanced_fuzzy_suggestions
+ * @property {Map.<string, Array.<number>>} suggestions
  */
 export class Term {
     constructor(term) {
         this.term = term;
         this.isExactMatch = true;
-        this.simple_fuzzy_suggestions = new Map();
-        this.advanced_fuzzy_suggestions = new Map();
+        this.suggestions = new Map();
     }
 };
