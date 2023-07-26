@@ -121,18 +121,21 @@ export default class MultipleIndexesSearcher extends LitElement {
             overflow: scroll; 
         } 
         div.suggestion-list {
-            width: 100px;
+            width: 120px;
         }
         div.suggestion {
             margin: 3px 0;
             padding: 2px;
             overflow-wrap: break-word;
+            border-bottom: solid 1px black;
         }
         div.suggestion:hover {
-            background-color: #edebeb;
+            background-color: #0284c7;
+            color: #ffffff;
         }
         div.suggestion-selected {
-            background-color: #edebeb;
+            background-color: #0284c7;
+            color: #ffffff;
         }
         div#search-result-container {
             width: var(--sc-width, 500px);
@@ -286,6 +289,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <sl-checkbox value="levenstein_2">Levenstein, 2 letters</sl-checkbox>
                     <sl-checkbox value="ngram">ngram</sl-checkbox>
                 </div>
+                <sl-progress-bar style="--height: 6px;" indeterminate></sl-progress-bar>
                 <div id="suggestion-lists-container">
                     <div id="suggestion-lists-toolbar">
                         <header>
@@ -300,7 +304,6 @@ export default class MultipleIndexesSearcher extends LitElement {
                         <output .value=${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber + " results" : "0 results"}></header>
                     </div>
                     <sc-pagination-toolbar page="1" total="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
-                    <sl-progress-bar style="--height: 6px;" indeterminate></sl-progress-bar>
                     <div id="search-result-items"></div>                
                 </div>
             </div>        
@@ -371,10 +374,10 @@ export default class MultipleIndexesSearcher extends LitElement {
         let checked = target.checked;
 
         this._searchTypes[value] = checked;
-        console.log(this._searchTypes);
     }
 
     _searchBySuggestions = async () => {
+        this._progressBar.style.display = "inline";
         let selectedSuggestions = [...this._suggestionListContent
             .querySelectorAll("div.suggestion-selected")]
             .map((selectedSuggestion) => selectedSuggestion.textContent.toLowerCase())
@@ -384,13 +387,14 @@ export default class MultipleIndexesSearcher extends LitElement {
         let commonInvertedIndexes = [];
         let firstSelectedSuggestion = null;
         let secondSelectedSuggestion = null;
-
+        
         // successive lookup for inverted indexes
         switch (selectedSuggestionsNumber) {
             // case with one selected suggestions
             case 1:
                 let selectedSuggestion = selectedSuggestions[0];
-                commonInvertedIndexes = await fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(selectedSuggestion)}`), {
+                console.log();
+                commonInvertedIndexes = await fetch(new URL(this._calculateRelativeURL(selectedSuggestion), this.fulltextIndexBaseURL), {
                     mode: "cors",
                 })
                     .then(response => response.json());
@@ -400,11 +404,11 @@ export default class MultipleIndexesSearcher extends LitElement {
                 firstSelectedSuggestion = selectedSuggestions[0];
                 secondSelectedSuggestion = selectedSuggestions[1];
                 commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}`), {
+                    fetch(new URL(this._calculateRelativeURL(firstSelectedSuggestion), this.fulltextIndexBaseURL), {
                         mode: "cors",
                     })
                         .then(response => response.json()),
-                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}`), {
+                    fetch(new URL(this._calculateRelativeURL(secondSelectedSuggestion), this.fulltextIndexBaseURL), {
                         mode: "cors",
                     })
                         .then(response => response.json())
@@ -415,11 +419,11 @@ export default class MultipleIndexesSearcher extends LitElement {
                 firstSelectedSuggestion = selectedSuggestions[0];
                 secondSelectedSuggestion = selectedSuggestions[1];
                 commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(firstSelectedSuggestion)}`), {
+                    fetch(new URL(this._calculateRelativeURL(firstSelectedSuggestion), this.fulltextIndexBaseURL), {
                         mode: "cors",
                     })
                         .then(response => response.json()),
-                    fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(secondSelectedSuggestion)}`), {
+                    fetch(new URL(this._calculateRelativeURL(secondSelectedSuggestion), this.fulltextIndexBaseURL), {
                         mode: "cors",
                     })
                         .then(response => response.json())
@@ -429,20 +433,21 @@ export default class MultipleIndexesSearcher extends LitElement {
                     let ithSelectedSuggestion = selectedSuggestions[i];
                     commonInvertedIndexes = await this._intersectTwoArraysPromises([
                         commonInvertedIndexes,
-                        fetch(new URL(`${this.fulltextIndexBaseURL}/${this._calculateRelativeURL(ithSelectedSuggestion)}`), {
+                        fetch(new URL(this._calculateRelativeURL(ithSelectedSuggestion), this.fulltextIndexBaseURL), {
                             mode: "cors",
                         })
                             .then(response => response.json())
                     ]);
                 }
         }
-
-        this._matchingDocumentIDs = commonInvertedIndexes;
+        
+        this._matchingDocumentIDs = Object.keys(commonInvertedIndexes);
         this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
         // display the paginated search results
         this._paginationToolbar.page = 1;
         this._paginationToolbar.total = 0;
+        this._searcher.markTerms = selectedSuggestions;
         await this._displaySearchResultsPage(1, this._searcher.markTerms);
     }
 
@@ -460,6 +465,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             let text = await fetch(textURL).then((response) => response.text(), {
                 mode: "cors",
             });
+            text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
             let resultHTMLString = this._resultItemTemplate({
                 currentPageDocumentID,
