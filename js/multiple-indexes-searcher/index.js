@@ -325,9 +325,9 @@ export default class MultipleIndexesSearcher extends LitElement {
         let searchString = this._searchStringInput.value.trim();
 
         // test if this is a proximity search
-        if ((searchString.startsWith("\"") && searchString.endsWith("\"")) || searchString.contains(("NEAR/"))) {
-            this._isProximitySearch = true;
-        }
+        //if ((searchString.startsWith("\"") && searchString.endsWith("\"")) || searchString.contains(("NEAR/"))) {
+            //this._isProximitySearch = true;
+        //}
         //console.log(this._isProximitySearch);
         //console.log(searchString);
 
