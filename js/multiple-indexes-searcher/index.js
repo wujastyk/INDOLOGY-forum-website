@@ -185,7 +185,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             "prefix": false,
             "levenstein_1": false,
             "levenstein_2": false,
-            "ngram": false,
+            "ngram": true,
         };
 
         // add event listeners
@@ -278,7 +278,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         return html`
             <div>
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="&quot;yoga&quot;"></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                 </div>
                 <div id="search-types-container">
