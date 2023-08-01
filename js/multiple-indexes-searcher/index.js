@@ -16,7 +16,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         /** URL for the JSON static index for terms. */
         termsJSONstaticURL: {
             attribute: "terms-json-static-url"
-        },        
+        },
         /** Base URL for the ngram index for words. */
         ngramIndexBaseURL: {
             attribute: "ngram-index-base-url"
@@ -25,7 +25,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         _ngram_similarity_threshold: {
             type: Number,
             attribute: "ngram-similarity-threshold"
-        },        
+        },
         /** Base IRI for documents. */
         documentsBaseIRI: {
             attribute: "documents-base-iri"
@@ -262,7 +262,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         root.addEventListener("sc-pagination-toolbar:page-changed", async (event) => {
             let newPage = event.detail.newPage;
 
-            await this._displaySearchResultsPage(newPage, this._searcher.markTerms);
+            await this._displaySearchResultsPage(newPage);
 
             this._progressBar.style.display = "none";
         });
@@ -285,8 +285,8 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <label>Search types:</label>
                     <sl-checkbox value="exact" disabled checked>exact</sl-checkbox>
                     <sl-checkbox value="prefix">prefix</sl-checkbox>
-                    <sl-checkbox value="levenstein_1">Levenstein, 1 letter</sl-checkbox>
-                    <sl-checkbox value="levenstein_2">Levenstein, 2 letters</sl-checkbox>
+                    <sl-checkbox value="levenstein_1">different by one letter</sl-checkbox>
+                    <sl-checkbox value="levenstein_2">different by two letters</sl-checkbox>
                     <sl-checkbox value="ngram">ngram</sl-checkbox>
                 </div>
                 <sl-progress-bar style="--height: 6px;" indeterminate></sl-progress-bar>
@@ -301,7 +301,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                 </div>
                 <div id="search-result-container">
                     <div id="search-result-toolbar">
-                        <output .value=${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber + " results" : "0 results"}></header>
+                        <output .value="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber + ' results for' : '0 results'} ${this._searcher.markTerms}"></header>
                     </div>
                     <sc-pagination-toolbar page="1" total="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
                     <div id="search-result-items"></div>                
@@ -326,16 +326,16 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // test if this is a proximity search
         //if ((searchString.startsWith("\"") && searchString.endsWith("\"")) || searchString.contains(("NEAR/"))) {
-            //this._isProximitySearch = true;
+        //    this._isProximitySearch = true;
         //}
         //console.log(this._isProximitySearch);
         //console.log(searchString);
 
+        // &quot;yoga&quot;
+
         // process the search string (currently, only by tokenisation)
         searchString = searchString.replaceAll("\"", "");
         let searchStringTokens = searchString.split(" ");
-
-
 
         // execute the selected searches and get the matching IDs
         this._searcher.terms = searchStringTokens;
@@ -352,7 +352,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
             // display the paginated search results
-            await this._displaySearchResultsPage(1, this._searcher.markTerms);
+            await this._displaySearchResultsPage(1);
 
             // if it is any fuzzy search, display the suggestions
             if (this._searcher.isFuzzySearch) {
@@ -360,7 +360,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                 this._searcher.termStructures.forEach((termStructure) => {
                     suggestionStructures.set(termStructure.term, termStructure.suggestions);
                 });
-    
+
                 this._displaySuggestions(suggestionStructures);
             }
         } else {
@@ -387,13 +387,12 @@ export default class MultipleIndexesSearcher extends LitElement {
         let commonInvertedIndexes = [];
         let firstSelectedSuggestion = null;
         let secondSelectedSuggestion = null;
-        
+
         // successive lookup for inverted indexes
         switch (selectedSuggestionsNumber) {
             // case with one selected suggestions
             case 1:
                 let selectedSuggestion = selectedSuggestions[0];
-                console.log();
                 commonInvertedIndexes = await fetch(new URL(this._calculateRelativeURL(selectedSuggestion), this.fulltextIndexBaseURL), {
                     mode: "cors",
                 })
@@ -440,7 +439,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     ]);
                 }
         }
-        
+
         this._matchingDocumentIDs = Object.keys(commonInvertedIndexes);
         this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
@@ -448,10 +447,10 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._paginationToolbar.page = 1;
         this._paginationToolbar.total = 0;
         this._searcher.markTerms = selectedSuggestions;
-        await this._displaySearchResultsPage(1, this._searcher.markTerms);
+        await this._displaySearchResultsPage(1);
     }
 
-    async _displaySearchResultsPage(newPageNumber, terms) {
+    async _displaySearchResultsPage(newPageNumber) {
         let startIndex = (newPageNumber - 1) * this.paginationLimit;
         let endIndex = newPageNumber * this.paginationLimit;
         let currentPageDocumentIDs = this._matchingDocumentIDs.slice(startIndex, endIndex);
@@ -481,7 +480,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._searchResultContainer.innerHTML = searchResultHTMLString;
 
         // highlight the search results
-        this._markInstance.mark(terms, {
+        this._markInstance.mark(this._searcher.markTerms, {
             "accuracy": {
                 "value": "exactly",
                 "limiters": [

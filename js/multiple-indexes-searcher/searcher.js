@@ -31,6 +31,7 @@ export default class Searcher {
 
     set terms(value) {
         this._terms = value;
+        this.markTerms = this.terms.join(" ");
     }
 
     get terms() {
@@ -61,9 +62,6 @@ export default class Searcher {
     }
 
     executeSearch = async (searchTypes) => {
-        // initializations 
-        this.markTerms = this.terms.join(" ");
-
         // execute the selected searches and get the matching IDs
         const promises = this.terms.map(async term => {
             // initialisations
@@ -102,7 +100,6 @@ export default class Searcher {
 
             // aggregate the suggestions id-s
             let suggestionIDs = new Set(Array.from([prefix_search_results, levenstein_1_search_results, levenstein_2_search_results, ngramSearchResults]).flat());
-
             // aggregate the suggestions
             let suggestions = Array.from(suggestionIDs).map(item => this._words[item]).sort();
             for (let suggestion of suggestions) {
@@ -110,7 +107,7 @@ export default class Searcher {
             }
 
             // finally, execute the exact search
-            await fetch(new URL(this._calculateRelativeURL(term), this.exactIndexBaseURL), { mode: "cors" })
+            await fetch(new URL(`${this._calculateRelativeURL(this._words.indexOf(term))}.json`, this.exactIndexBaseURL), { mode: "cors" })
                 .then(async response => {
                     if (response.status === 200) {
                         let data = await response.json();
@@ -183,16 +180,10 @@ export default class Searcher {
         return resultWords;
     }
 
-    _calculateRelativeURL = (token) => {
-        let firstCharacter = token.slice(0, 1);
-        let suggestionRelativeURL = firstCharacter + "/";
+    _calculateRelativeURL = (value) => {
+        let firstTreeeLetters = value.toString().split("").splice(0, 3).join("/");
 
-        let secondCharacter = token.slice(1, 2);
-        if (secondCharacter !== "") {
-            suggestionRelativeURL = suggestionRelativeURL + secondCharacter;
-        }
-
-        return `${suggestionRelativeURL}/${token}.json`;
+        return firstTreeeLetters + "/" + value;
     }
 
     _intersectIDs = (sets) => {

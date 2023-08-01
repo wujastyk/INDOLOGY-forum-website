@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>INDOLOGY Forum mailing list - search interface</title>
-    <link href="http://fonts.cdnfonts.com/css/palatino-linotype" rel="stylesheet" />
+    <link href="https://fonts.cdnfonts.com/css/palatino-linotype" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/themes/light.css" />
     <link href="css/index.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dialog-polyfill/0.5.6/dialog-polyfill.min.js"></script>
@@ -34,23 +34,31 @@
         <h1 class="title">INDOLOGY Forum mailing list - search interface</h1>
     </header>
     <section class="main">
-        <multiple-indexes-searcher fulltext-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/so-fulltext-static/"
-            terms-fst-map-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/s-fst-map/index.fst"
-            terms-json-static-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/s-json-static/index.fst"
-            ngram-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/s-ngram-static/"
-            documents-base-iri="https://wujastyk.github.io/INDOLOGY-forum-data/data/"
-            document-relative-iris-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/text-relative-iris/s-json-static/index.json"
+        <multiple-indexes-searcher fulltext-index-base-url="http://localhost:8080/indexes/terms/so-fulltext-static/"
+            terms-fst-map-url="http://localhost:8080/indexes/terms/s-fst-map/index.fst"
+            terms-json-static-url="http://localhost:8080/indexes/terms/s-json-static/index.fst"
+            ngram-index-base-url="http://localhost:8080/indexes/terms/s-ngram-static/"
+            documents-base-iri="http://localhost:8080/data/"
+            document-relative-iris-url="http://localhost:8080/indexes/text-relative-iris/s-json-static/index.json"
             ngram-similarity-threshold="0.6"
             pagination-limit="10">
         </multiple-indexes-searcher>
     </section>
     <solirom-loading-spinner></solirom-loading-spinner>
 </body>
-<!-- https://wujastyk.github.io/INDOLOGY-forum-data/ -->
+<!-- http://localhost:8080/ -->
 
 </html>
 <!--
-    display the selected suggestions and operators
-    why file ??caryayogam?l?.json is not found? https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/so-fulltext-static/?/?/??caryayogam?l?.json
-    parse query string, https://blog.logrocket.com/building-rust-parser-pest-peg/s
+    why file ??caryayogam?l?.json is not found? http://localhost:8080/indexes/terms/so-fulltext-static/?/?/??caryayogam?l?.json
+    parse query string, https://blog.logrocket.com/building-rust-parser-pest-peg/s, and display the selected suggestions and operators
+-->
+
+<!--
+SEARCH GUIDE
+
+I changed this to "Different by one letter" and "Different by two letters", respectively. This means words that are different by the specified number of letters to the word that is searched for. The difference means> addition, deletion, or replacement of the specified number of letters.
+I will make a search guide, for sure. I was planning it.
+
+
 -->
