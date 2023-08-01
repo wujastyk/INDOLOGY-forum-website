@@ -37,7 +37,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         /** Base URL for the raw documents. */
         rawDocumentsBaseURL: {
             attribute: "raw-documents-base-url"
-        },        
+        },
         /** Per-page limit of the elements. */
         paginationLimit: {
             type: Number,
@@ -223,12 +223,9 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._markInstance = new Mark(this.renderRoot?.querySelector("div#search-result-items"));
 
         // dialog
-        const dialog = this.renderRoot?.querySelector('.dialog-overview');
-        const openButton = dialog.nextElementSibling;
-        const closeButton = dialog.querySelector('sl-button[slot="footer"]');
-
-        openButton.addEventListener('click', () => dialog.show());
-        closeButton.addEventListener('click', () => dialog.hide());        
+        this.dialog = this.renderRoot?.querySelector(".dialog-overview");
+        this.renderRoot?.querySelector("sl-button#open-help-dialog").addEventListener("click", () => this.dialog.show());
+        this.renderRoot?.querySelector("sl-button#close-help-dialog").addEventListener("click", () => this.dialog.hide());
     }
 
     get _searchStringInput() {
@@ -301,12 +298,12 @@ export default class MultipleIndexesSearcher extends LitElement {
                     the words in character bigrams (tokens of two characters) will
                     return suggestions that are different by the search term based upon
                     a similarity threshold.
-                    <sl-button slot="footer" variant="primary">Close</sl-button>
+                    <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
                     <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
-                    <sl-button>Help</sl-button>
+                    <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
                 <div id="search-types-container">
                     <label>Search types:</label>
