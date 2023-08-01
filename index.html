@@ -34,23 +34,26 @@
         <h1 class="title">INDOLOGY Forum mailing list - search interface</h1>
     </header>
     <section class="main">
-        <multiple-indexes-searcher fulltext-index-base-url="http://localhost:8080/indexes/terms/so-fulltext-static/"
-            terms-fst-map-url="http://localhost:8080/indexes/terms/s-fst-map/index.fst"
-            terms-json-static-url="http://localhost:8080/indexes/terms/s-json-static/index.fst"
-            ngram-index-base-url="http://localhost:8080/indexes/terms/s-ngram-static/"
-            documents-base-iri="http://localhost:8080/data/"
-            document-relative-iris-url="http://localhost:8080/indexes/text-relative-iris/s-json-static/index.json"
+        <multiple-indexes-searcher fulltext-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data//indexes/terms/so-fulltext-static/"
+            terms-fst-map-url="https://wujastyk.github.io/INDOLOGY-forum-data//indexes/terms/s-fst-map/index.fst"
+            terms-json-static-url="https://wujastyk.github.io/INDOLOGY-forum-data//indexes/terms/s-json-static/index.fst"
+            ngram-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data//indexes/terms/s-ngram-static/"
+            documents-base-iri="https://wujastyk.github.io/INDOLOGY-forum-data//data/"
+            document-relative-iris-url="https://wujastyk.github.io/INDOLOGY-forum-data//indexes/text-relative-iris/s-json-static/index.json"
+            raw-documents-base-url="https://wujastyk.github.io/INDOLOGY-forum-archives/processed-data/"
             ngram-similarity-threshold="0.6"
             pagination-limit="10">
         </multiple-indexes-searcher>
     </section>
     <solirom-loading-spinner></solirom-loading-spinner>
 </body>
-<!-- http://localhost:8080/ -->
+<!-- https://wujastyk.github.io/INDOLOGY-forum-data//
+https://wujastyk.github.io/INDOLOGY-forum-data/
+-->
 
 </html>
 <!--
-    why file ??caryayogam?l?.json is not found? http://localhost:8080/indexes/terms/so-fulltext-static/?/?/??caryayogam?l?.json
+    why file ??caryayogam?l?.json is not found? https://wujastyk.github.io/INDOLOGY-forum-data//indexes/terms/so-fulltext-static/?/?/??caryayogam?l?.json
     parse query string, https://blog.logrocket.com/building-rust-parser-pest-peg/s, and display the selected suggestions and operators
 -->
 

@@ -34,6 +34,10 @@ export default class MultipleIndexesSearcher extends LitElement {
         documentRelativeIRIsURL: {
             attribute: "document-relative-iris-url"
         },
+        /** Base URL for the raw documents. */
+        rawDocumentsBaseURL: {
+            attribute: "raw-documents-base-url"
+        },        
         /** Per-page limit of the elements. */
         paginationLimit: {
             type: Number,
@@ -531,12 +535,15 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     _suggestionListTemplate = (data) => `<div class="suggestion-list">${data}</div>`
 
-    _resultItemTemplate = (data) =>
-        `<div class="result-item">
-            <div class="result-item-toolbar">${data.index}. ${data.documentRelativeIRI.split("-")[0]}</div>
+    _resultItemTemplate = (data) => {
+        let rawDocumentURL = new URL(data.documentRelativeIRI, this.rawDocumentsBaseURL);
+
+        return `<div class="result-item">
+            <div class="result-item-toolbar">${data.index}. ${data.documentRelativeIRI.split("-")[0]} <a href="${rawDocumentURL}" target="_blank">original message</a></div>
             <div class="result-item-content">${data.text}</div>
         </div>
         `
+    }
 
     _intersectTwoArraysPromises = async (promises) => {
         const [aPromise, bPromise] = await Promise.allSettled(promises);
