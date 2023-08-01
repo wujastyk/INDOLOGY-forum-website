@@ -100,7 +100,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             justify-content: space-evenly;
         }              
         sl-input { 
-            width: 400px;              
+            width: 400px;
         } 
         div#suggestion-lists-container {
             width: var(--sc-width, 500px);
@@ -174,7 +174,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._matchingDocumentIDs = [];
 
         // Variables for the NGram index
-        this._ngram_similarity_threshold = 0.4;
+        this._ngram_similarity_threshold = 0.6;
         this._words = [];
 
         // Variables for the FST index
@@ -221,6 +221,14 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // initialize the mark resolver
         this._markInstance = new Mark(this.renderRoot?.querySelector("div#search-result-items"));
+
+        // dialog
+        const dialog = this.renderRoot?.querySelector('.dialog-overview');
+        const openButton = dialog.nextElementSibling;
+        const closeButton = dialog.querySelector('sl-button[slot="footer"]');
+
+        openButton.addEventListener('click', () => dialog.show());
+        closeButton.addEventListener('click', () => dialog.hide());        
     }
 
     get _searchStringInput() {
@@ -281,9 +289,24 @@ export default class MultipleIndexesSearcher extends LitElement {
     render() {
         return html`
             <div>
+                <sl-dialog label="Help" class="dialog-overview">
+                    By selecting one or more of the above search types, you will get more
+                    suggestions for each search term.
+                        The prefix search will return all the words
+                    starting with the search term, the searches "different by one letter" and
+                    "different by two letters", respectively, which are Levenstein searches, will
+                    return suggestions that differ from the search term by one, respectively two
+                    letters, and by difference one should mean addition, deletion, or replacement,
+                    while the NGram search, which uses an index built by segmenting
+                    the words in character bigrams (tokens of two characters) will
+                    return suggestions that are different by the search term based upon
+                    a similarity threshold.
+                    <sl-button slot="footer" variant="primary">Close</sl-button>
+                </sl-dialog>            
                 <div id="search-input-container">
                     <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
+                    <sl-button>Help</sl-button>
                 </div>
                 <div id="search-types-container">
                     <label>Search types:</label>
