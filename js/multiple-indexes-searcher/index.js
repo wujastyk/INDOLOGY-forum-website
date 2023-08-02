@@ -559,7 +559,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         let rawDocumentURL = new URL(data.documentRelativeIRI, this.rawDocumentsBaseURL);
 
         return `<div class="result-item">
-            <div class="result-item-toolbar">${data.index}. ${data.documentRelativeIRI.split("-")[0]} <a href="${rawDocumentURL}" target="_blank">original message</a></div>
+            <div class="result-item-toolbar">${data.index}. ${data.documentRelativeIRI.split("-")[0]} <a href="${rawDocumentURL}" target="_blank">full text</a></div>
             <div class="result-item-content">${data.text}</div>
         </div>
         `
