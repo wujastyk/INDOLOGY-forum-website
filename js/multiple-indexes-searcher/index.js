@@ -174,7 +174,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._matchingDocumentIDs = [];
 
         // Variables for the NGram index
-        this._ngram_similarity_threshold = 0.6;
+        this._ngram_similarity_threshold = 0.7;
         this._words = [];
 
         // Variables for the FST index
@@ -287,17 +287,11 @@ export default class MultipleIndexesSearcher extends LitElement {
         return html`
             <div>
                 <sl-dialog label="Help" class="dialog-overview">
-                    By selecting one or more of the above search types, you will get more
-                    suggestions for each search term.
-                        The prefix search will return all the words
-                    starting with the search term, the searches "different by one letter" and
-                    "different by two letters", respectively, which are Levenstein searches, will
-                    return suggestions that differ from the search term by one, respectively two
-                    letters, and by difference one should mean addition, deletion, or replacement,
-                    while the NGram search, which uses an index built by segmenting
-                    the words in character bigrams (tokens of two characters) will
-                    return suggestions that are different by the search term based upon
-                    a similarity threshold.
+                    <p style="text-justify: inter-word;">By selecting one or more of the below search types, you will get more
+                    suggestions for each search term.</p>
+                    <p style="text-justify: inter-word;">The "prefix" search will return all the words starting with the search term.</p>
+                    <p style="text-justify: inter-word;">The "different by one letter" and "different by two letters" searches, which are Levenstein searches, will return suggestions that differ from the search term by one, respectively two letters; by difference one should understand addition, deletion, or replacement.</p>
+                    <p style="text-justify: inter-word;">The "ngram" search, which uses an index built by segmenting the words in character bigrams (tokens of two characters), will return suggestions that are different by the search term based upon a similarity threshold having a fixed value of 0.7 (70%).</p>
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
@@ -598,5 +592,3 @@ export default class MultipleIndexesSearcher extends LitElement {
 }
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
-
-// tattvacintam
