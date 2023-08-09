@@ -18,7 +18,7 @@ await init();
 export default class Searcher {
     constructor(exactIndexBaseURL, termsFSTmapURL, ngramIndexBaseURL, ngramSimilarityThreshold, _words) {
         this._terms = [];
-        this._markTerms = "";
+        this._markTerms = null;
         this.termStructures = [];
         this.allExactMatches = true;
         this.isFuzzySearch = false;
@@ -107,16 +107,21 @@ export default class Searcher {
             }
 
             // finally, execute the exact search
-            await fetch(new URL(`${this._calculateRelativeURL(this._words.indexOf(term))}.json`, this.exactIndexBaseURL), { mode: "cors" })
-                .then(async response => {
-                    if (response.status === 200) {
-                        let data = await response.json();
-                        termStructure.suggestions.set(term, Object.keys(data));
-                    } else {
-                        this.allExactMatches = false;
-                        termStructure.isExactMatch = false;
-                    }
-                });
+            let termIndex = this._words.indexOf(term);
+            if (termIndex !== -1) {
+                await fetch(new URL(`${this._calculateRelativeURL(this._words.indexOf(term))}.json`, this.exactIndexBaseURL), { mode: "cors" })
+                    .then(async response => {
+                        if (response.status === 200) {
+                            let data = await response.json();
+                            termStructure.suggestions.set(term, Object.keys(data));
+                        } else {
+                            alert("An error occured during search. Please, retry.");
+                        }
+                    });
+            } else {
+                this.allExactMatches = false;
+                termStructure.isExactMatch = false;
+            }
 
             return termStructure;
         });

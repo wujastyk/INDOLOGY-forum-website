@@ -44,6 +44,12 @@ export default class MultipleIndexesSearcher extends LitElement {
             reflect: true,
             attribute: "pagination-limit"
         },
+        /** The search ID */
+        _searchTerms: {
+            hasChanged(newVal, oldVal) {
+                return newVal?.toLowerCase() !== oldVal?.toLowerCase();
+            }
+        },
         /** The list with document relative IRIs */
         _documentRelativeIRIs: {
             type: Array,
@@ -170,7 +176,7 @@ export default class MultipleIndexesSearcher extends LitElement {
     constructor() {
         super();
 
-        this._matchingDocumentNumber = null;
+        this._matchingDocumentNumber = 0;
         this._matchingDocumentIDs = [];
 
         // Variables for the NGram index
@@ -287,15 +293,15 @@ export default class MultipleIndexesSearcher extends LitElement {
         return html`
             <div>
                 <sl-dialog label="Help" class="dialog-overview">
-                    <p style="text-justify: inter-word;">By selecting one or more of the below search types, you will get more
+                    <p>By selecting one or more of the below search types, you will get more
                     suggestions for each search term.</p>
-                    <p style="text-justify: inter-word;">The "prefix" search will return all the words starting with the search term.</p>
-                    <p style="text-justify: inter-word;">The "different by one letter" and "different by two letters" searches, which are Levenstein searches, will return suggestions that differ from the search term by one, respectively two letters; by difference one should understand addition, deletion, or replacement.</p>
-                    <p style="text-justify: inter-word;">The "ngram" search, which uses an index built by segmenting the words in character bigrams (tokens of two characters), will return suggestions that are different by the search term based upon a similarity threshold having a fixed value of 0.7 (70%).</p>
+                    <p>The "prefix" search will return all the words starting with the search term.</p>
+                    <p>The "different by one letter" and "different by two letters" searches, which are Levenstein searches, will return suggestions that differ from the search term by one, respectively two letters; by difference one should understand addition, deletion, or replacement.</p>
+                    <p>The "ngram" search, which uses an index built by segmenting the words in character bigrams (tokens of two characters), will return suggestions that are different by the search term based upon a similarity threshold having a fixed value of 0.7 (70%).</p>
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="yogt"></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                     <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
@@ -319,7 +325,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                 </div>
                 <div id="search-result-container">
                     <div id="search-result-toolbar">
-                        <output .value="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber + ' results for' : '0 results'} ${this._searcher.markTerms}"></header>
+                        <output>${this._displaySearchResultStatement()}</output>
                     </div>
                     <sc-pagination-toolbar page="1" total="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
                     <div id="search-result-items"></div>                
@@ -329,13 +335,12 @@ export default class MultipleIndexesSearcher extends LitElement {
     }
     _search = async () => {
         // some initializations
-
-        // reset the searcher
-        this._searcher.reset();
-
-        // reset form controls
         this._progressBar.style.display = "inline";
-        this._paginationToolbar.page = 1;
+
+        // resets
+        this.reset();
+        this._searcher.reset();
+        this._paginationToolbar.reset();
         this._searchResultContainer.innerHTML = "";
         this._suggestionListContent.innerHTML = "";
 
@@ -382,7 +387,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                 this._displaySuggestions(suggestionStructures);
             }
         } else {
-
+            this.requestUpdate("_matchingDocumentNumber");
         }
     }
 
@@ -462,58 +467,62 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
         // display the paginated search results
-        this._paginationToolbar.page = 1;
-        this._paginationToolbar.total = 0;
+        this._paginationToolbar.reset();
         this._searcher.markTerms = selectedSuggestions;
+
         await this._displaySearchResultsPage(1);
     }
 
     async _displaySearchResultsPage(newPageNumber) {
-        let startIndex = (newPageNumber - 1) * this.paginationLimit;
-        let endIndex = newPageNumber * this.paginationLimit;
-        let currentPageDocumentIDs = this._matchingDocumentIDs.slice(startIndex, endIndex);
+        let matchingDocumentIDs = this._matchingDocumentIDs;
 
-        // generate the HTML string with the results on the current page
-        let searchResultHTMLString = "";
-        let currentPageDocumentIDsIndex = 0;
-        for (let currentPageDocumentID of currentPageDocumentIDs) {
-            let documentRelativeIRI = this._documentRelativeIRIs[currentPageDocumentID];
-            let textURL = new URL(documentRelativeIRI, this.documentsBaseIRI);
-            let text = await fetch(textURL).then((response) => response.text(), {
-                mode: "cors",
+        if (matchingDocumentIDs !== 0) {
+            let startIndex = (newPageNumber - 1) * this.paginationLimit;
+            let endIndex = newPageNumber * this.paginationLimit;
+            let currentPageDocumentIDs = matchingDocumentIDs.slice(startIndex, endIndex);
+
+            // generate the HTML string with the results on the current page
+            let searchResultHTMLString = "";
+            let currentPageDocumentIDsIndex = 0;
+            for (let currentPageDocumentID of currentPageDocumentIDs) {
+                let documentRelativeIRI = this._documentRelativeIRIs[currentPageDocumentID];
+                let textURL = new URL(documentRelativeIRI, this.documentsBaseIRI);
+                let text = await fetch(textURL).then((response) => response.text(), {
+                    mode: "cors",
+                });
+                text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+                let resultHTMLString = this._resultItemTemplate({
+                    currentPageDocumentID,
+                    "index": startIndex + 1 + currentPageDocumentIDsIndex,
+                    documentRelativeIRI,
+                    text
+                });
+                searchResultHTMLString += resultHTMLString;
+
+                currentPageDocumentIDsIndex++;
+            }
+
+            this._searchResultContainer.innerHTML = searchResultHTMLString;
+
+            // highlight the search results
+            this._markInstance.mark(this._searcher.markTerms, {
+                "accuracy": {
+                    "value": "exactly",
+                    "limiters": [
+                        '„', '“',
+                        // punctuation-regex › regex101
+                        // https://www.npmjs.com/package/punctuation-regex
+                        '-', '‒', '–', '—', '―', '|', '$', '&', '~', '=',
+                        '\\', '/', '⁄', '@', '+', '*', '!', '?', '(', '{', '[', ']',
+                        '}', ')', '<', '>', '‹', '›', '«', '»', '.', ';', ':', '^',
+                        '‘', '’', '“', '”', "'", '"', ',', '،', '、', '`', '·', '•',
+                        '†', '‡', '°', '″', '¡', '¿', '※', '#', '№', '÷', '×', '%',
+                        '‰', '−', '‱', '¶', '′', '‴', '§', '_', '‖', '¦',
+                    ],
+                },
             });
-            text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-
-            let resultHTMLString = this._resultItemTemplate({
-                currentPageDocumentID,
-                "index": startIndex + 1 + currentPageDocumentIDsIndex,
-                documentRelativeIRI,
-                text
-            });
-            searchResultHTMLString += resultHTMLString;
-
-            currentPageDocumentIDsIndex++;
         }
-
-        this._searchResultContainer.innerHTML = searchResultHTMLString;
-
-        // highlight the search results
-        this._markInstance.mark(this._searcher.markTerms, {
-            "accuracy": {
-                "value": "exactly",
-                "limiters": [
-                    '„', '“',
-                    // punctuation-regex › regex101
-                    // https://www.npmjs.com/package/punctuation-regex
-                    '-', '‒', '–', '—', '―', '|', '$', '&', '~', '=',
-                    '\\', '/', '⁄', '@', '+', '*', '!', '?', '(', '{', '[', ']',
-                    '}', ')', '<', '>', '‹', '›', '«', '»', '.', ';', ':', '^',
-                    '‘', '’', '“', '”', "'", '"', ',', '،', '、', '`', '·', '•',
-                    '†', '‡', '°', '″', '¡', '¿', '※', '#', '№', '÷', '×', '%',
-                    '‰', '−', '‱', '¶', '′', '‴', '§', '_', '‖', '¦',
-                ],
-            },
-        });
     }
 
     /**
@@ -537,6 +546,18 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._suggestionListContent.insertAdjacentHTML("beforeend", suggestionsDOMString);
 
         this._suggestionListsContainer.style.display = "inline";
+    }
+
+    _displaySearchResultStatement() {
+        if (this._matchingDocumentNumber !== 0) {
+            return `${this._matchingDocumentNumber} results for ${this._searcher.markTerms}`;
+        } else {
+            if (this._searcher.markTerms !== null) {
+                return `0 results for ${this._searcher.markTerms}`;
+            } else {
+                return `0 results`;
+            }
+        }
     }
 
     _suggestionTemplate = (data) => {
@@ -588,6 +609,11 @@ export default class MultipleIndexesSearcher extends LitElement {
         }
 
         return `${suggestionRelativeURL}/${token}.json`;
+    }
+
+    reset = () => {
+        this._matchingDocumentNumber = 0;
+        this._matchingDocumentIDs = [];        
     }
 }
 
