@@ -338,11 +338,11 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._progressBar.style.display = "inline";
 
         // resets
-        this.reset();
+        this._reset();
         this._searcher.reset();
         this._paginationToolbar.reset();
+        this._resetSuggestionList();
         this._searchResultContainer.innerHTML = "";
-        this._suggestionListContent.innerHTML = "";
 
         // get the search string
         let searchString = this._searchStringInput.value.trim();
@@ -401,6 +401,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     _searchBySuggestions = async () => {
         this._progressBar.style.display = "inline";
+        
         let selectedSuggestions = [...this._suggestionListContent
             .querySelectorAll("div.suggestion-selected")]
             .map((selectedSuggestion) => selectedSuggestion.textContent.toLowerCase())
@@ -529,8 +530,8 @@ export default class MultipleIndexesSearcher extends LitElement {
      * @param {Array.<Map>} suggestionStructures
      */
     _displaySuggestions(suggestionStructures) {
-        // initialize the container
-        this._suggestionListContent.innerHTML = "";
+        // reset the container
+        this._resetSuggestionList();
 
         // initialize the DOMString for suggestions
         let suggestionsDOMString = "";
@@ -611,9 +612,14 @@ export default class MultipleIndexesSearcher extends LitElement {
         return `${suggestionRelativeURL}/${token}.json`;
     }
 
-    reset = () => {
+    _reset = () => {
         this._matchingDocumentNumber = 0;
-        this._matchingDocumentIDs = [];        
+        this._matchingDocumentIDs = [];
+    }
+
+    _resetSuggestionList = () => {
+        this._suggestionListContent.innerHTML = "";
+        this._suggestionListsContainer.style.display = "none";
     }
 }
 
