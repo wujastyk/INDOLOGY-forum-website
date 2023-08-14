@@ -2,6 +2,7 @@ import "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.4.0/dist/shoelac
 import { LitElement, css, html } from "https://cdn.jsdelivr.net/npm/lit/+esm";
 import "https://solirom.gitlab.io/web-components/pagination-toolbar/index.js";
 import Searcher from "./searcher.js";
+import "../query-string-parser/query-string-parser.js";
 
 export default class MultipleIndexesSearcher extends LitElement {
     static properties = {
@@ -301,7 +302,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value="yogt"></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="the w/1 first"></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                     <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
@@ -346,6 +347,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // get the search string
         let searchString = this._searchStringInput.value.trim();
+        console.log(queryStringParser.parse(searchString));
 
         // test if this is a proximity search
         //if ((searchString.startsWith("\"") && searchString.endsWith("\"")) || searchString.contains(("NEAR/"))) {
@@ -357,7 +359,6 @@ export default class MultipleIndexesSearcher extends LitElement {
         // &quot;yoga&quot;
 
         // process the search string (currently, only by tokenisation)
-        searchString = searchString.replaceAll("\"", "");
         let searchStringTokens = searchString.split(" ");
 
         // execute the selected searches and get the matching IDs
@@ -401,7 +402,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     _searchBySuggestions = async () => {
         this._progressBar.style.display = "inline";
-        
+
         let selectedSuggestions = [...this._suggestionListContent
             .querySelectorAll("div.suggestion-selected")]
             .map((selectedSuggestion) => selectedSuggestion.textContent.toLowerCase())
