@@ -347,16 +347,18 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // get the search string
         let searchString = this._searchStringInput.value.trim();
-        console.log(queryStringParser.parse(searchString));
+        let [isProximitySearch, ...searchStringAST] = queryStringParser.parse(searchString);
+        console.log(isProximitySearch);
+        console.log(searchStringAST);
 
         // test if this is a proximity search
+        
+        
         //if ((searchString.startsWith("\"") && searchString.endsWith("\"")) || searchString.contains(("NEAR/"))) {
         //    this._isProximitySearch = true;
         //}
         //console.log(this._isProximitySearch);
         //console.log(searchString);
-
-        // &quot;yoga&quot;
 
         // process the search string (currently, only by tokenisation)
         let searchStringTokens = searchString.split(" ");

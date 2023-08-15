@@ -3,16 +3,15 @@ start
 
 Expression
   = head:Term tail:(_ operator:Operator? _ Term)* {
-  	let isProximitySearch = false;
   	if (tail.length === 0) {
     	return [head]
     } else {
     	let result = tail.map((tailItem) => {
+        if (tailItem[1] === null) {
+        	tailItem[1] = {"w-proximity-operator": -1};
+        }        
           let filteredTailItem = tailItem.filter((item) => {
-              let itemAsString = JSON.stringify(item);
-              if (itemAsString.includes("w-proximity-operator")) {
-              	isProximitySearch = true;
-              }
+            let itemAsString = JSON.stringify(item);
 
             return !(item === null || itemAsString === "[]" || itemAsString === '[" "]');
           });
@@ -21,7 +20,7 @@ Expression
         }
       );
         
-        return [{"proximity-search": isProximitySearch}, head, result.flat()].flat();
+        return [head, result.flat()].flat();
       }
     }
 
