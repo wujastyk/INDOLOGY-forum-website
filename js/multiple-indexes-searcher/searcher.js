@@ -154,13 +154,16 @@ export default class Searcher {
     intersectSearchResult = () => {
         let positionalIntersectionResult = new Map();
         let w_distance = 0;
-
+        
         this.termAndOperatorsStructures.forEach(item => {
             switch (true) {
                 case item.hasOwnProperty("term"):
                     let term = item.term.toLowerCase();
                     let positionalIndexRecords = item.suggestions.get(term);
-                    positionalIntersectionResult = this._positionalIndexRecordsIntersection(positionalIntersectionResult, positionalIndexRecords, w_distance);
+                    console.log(positionalIntersectionResult);
+                    console.log(positionalIndexRecords);
+
+                    positionalIntersectionResult = this._positionalIndexRecordsIntersection(positionalIntersectionResult, positionalIndexRecords, w_distance, "exact", true);
                     break;
                 case item.hasOwnProperty("w-proximity-operator"):
                     w_distance = item["w-proximity-operator"];
@@ -345,17 +348,10 @@ export default class Searcher {
     }
 
     _positionalIndexRecordsIntersection = (positionalIndexRecord_1, positionalIndexRecord_2, distance, search_type, ordered) => {
-        if (positionalIndexRecord_1 instanceof Object) {
-            positionalIndexRecord_1 = new Map(Object.entries(positionalIndexRecord_1));
-        }
-        if (positionalIndexRecord_2 instanceof Object) {
-            positionalIndexRecord_2 = new Map(Object.entries(positionalIndexRecord_2));
-        }
-
         let result = new Map();
         let docIDs_1 = Array.from(positionalIndexRecord_1.keys());
         let docIDs_2 = Array.from(positionalIndexRecord_2.keys());
-
+        
         if (docIDs_1.length === 0) {
             return positionalIndexRecord_2;
         }
@@ -363,7 +359,7 @@ export default class Searcher {
             return positionalIndexRecord_1;
         }
 
-        let commonDocIDs = _intersectTwoArrays([docIDs_1, docIDs_2]);
+        let commonDocIDs = this._intersectTwoArrays([docIDs_1, docIDs_2]);
 
         for (let common_doc_ID of commonDocIDs) {
             let positions_1 = positionalIndexRecord_1.get(common_doc_ID);
@@ -375,10 +371,10 @@ export default class Searcher {
             } else {
                 switch (search_type) {
                     case "exact":
-                        proximity_positions = _intersectionWithExactDistance(positions_1, positions_2, distance, ordered);
+                        proximity_positions = this._intersectionWithExactDistance(positions_1, positions_2, distance, ordered);
                         break;
                     case "maximum":
-                        proximity_positions = _intersectionWithMaximumDistance(positions_1, positions_2, distance, ordered);
+                        proximity_positions = this._intersectionWithMaximumDistance(positions_1, positions_2, distance, ordered);
                         break;
                 }
             }
@@ -396,10 +392,10 @@ export default class Searcher {
     }
 
     _intersectionWithExactDistance = (positions_1, positions_2, distance, ordered) => {
-        let proximity_positions = _intersectTwoArraysWithDistance([positions_1, positions_2], distance);
+        let proximity_positions = this._intersectTwoArraysWithDistance([positions_1, positions_2], distance);
 
         if (!ordered) {
-            let reverse_proximity_positions = _intersectTwoArraysWithDistance([positions_2, positions_1], distance);
+            let reverse_proximity_positions = this._intersectTwoArraysWithDistance([positions_2, positions_1], distance);
             proximity_positions = proximity_positions.concat(reverse_proximity_positions);
         }
 
@@ -413,7 +409,7 @@ export default class Searcher {
         let proximity_positions = [];
 
         for (let step = 0; step <= distance; step++) {
-            proximity_positions = proximity_positions.concat(_intersectionWithExactDistance(positions_1, positions_2, step, ordered));
+            proximity_positions = proximity_positions.concat(this._intersectionWithExactDistance(positions_1, positions_2, step, ordered));
         }
 
         return proximity_positions;

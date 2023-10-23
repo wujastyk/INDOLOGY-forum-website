@@ -1,5 +1,4 @@
 import assert from "assert";
-import Searcher from "../js/multiple-indexes-searcher/searcher.js";
 
 // get the positional index records
 /* console.time("get the positional index records");
@@ -202,7 +201,11 @@ assert.deepStrictEqual(unordered_max_1, new Map(Object.entries({ "1": [8, 10, 12
 suggestions_1 = { "1": [13, 17] };
 suggestions_2 = { "1": [10, 16] };
 let unordered_max_2 = _positionalIndexRecordsIntersection(suggestions_1, suggestions_2, 2, "maximum", false);
-//assert.deepStrictEqual(unordered_max_2, new Map(Object.entries({ "1": [10, 13, 16, 17] })));
+assert.deepStrictEqual(unordered_max_2, new Map(Object.entries({ "1": [10, 13, 16, 17] })));
 
-//let intersection_with_one_empty_set = getPositionalIntersection(new Map(), suggestions_2, 1);
-//console.log(intersection_with_one_empty_set);
+suggestions_1 = new Map();
+suggestions_2 = { "1": [10, 16] };
+let ordered_exact_1_empty = _positionalIndexRecordsIntersection(suggestions_1, suggestions_2, 1);
+assert.deepStrictEqual(ordered_exact_1_empty, new Map(Object.entries({ "1": [10, 16] })));
+
+console.log(ordered_exact_1_empty);
