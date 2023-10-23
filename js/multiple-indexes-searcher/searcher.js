@@ -6,7 +6,7 @@ await init();
 /**
  * @typedef {Object} Searcher
  * @property {Array.<string>} terms  
- * @property {Array.<Term>} termStructures
+ * @property {Array.<Term>} termAndOperatorsStructures
  * @property {boolean} allExactMatches
  * @property {boolean} isFuzzySearch
  * @property {URL} exactIndexBaseURL
@@ -18,8 +18,9 @@ await init();
 export default class Searcher {
     constructor(exactIndexBaseURL, termsFSTmapURL, ngramIndexBaseURL, ngramSimilarityThreshold, _words) {
         this._terms = [];
+        this._searchStringAST = [];
         this._markTerms = null;
-        this.termStructures = [];
+        this.termAndOperatorsStructures = [];
         this.allExactMatches = true;
         this.isFuzzySearch = false;
         this.exactIndexBaseURL = exactIndexBaseURL;
@@ -36,6 +37,19 @@ export default class Searcher {
 
     get terms() {
         return this._terms;
+    }
+
+    set searchStringAST(value) {
+        this._searchStringAST = value;
+        let terms = [...value]
+            .filter(item => item.hasOwnProperty("term"))
+            .map(item => item.term);
+        this._terms = terms;
+        this.markTerms = this.terms.join(" ");
+    }
+
+    get searchStringAST() {
+        return this._searchStringAST;
     }
 
     set markTerms(value) {
@@ -57,78 +71,104 @@ export default class Searcher {
 
     reset() {
         this.terms = [];
-        this.termStructures = [];
+        this.termAndOperatorsStructures = [];
         this.allExactMatches = true;
     }
 
     executeSearch = async (searchTypes) => {
-        // execute the selected searches and get the matching IDs
-        const promises = this.terms.map(async term => {
-            // initialisations
-            let prefix_search_results = [];
-            let levenstein_1_search_results = [];
-            let levenstein_2_search_results = [];
-            let ngramSearchResults = [];
+        const promises = this.searchStringAST.map(async item => {
+            switch (true) {
+                case item.hasOwnProperty("term"):
+                    // initialisations
+                    let prefix_search_results = [];
+                    let levenstein_1_search_results = [];
+                    let levenstein_2_search_results = [];
+                    let ngramSearchResults = [];
 
-            term = term.toLowerCase();
-            let termStructure = new Term(term);
+                    let term = item.term;
+                    term = term.toLowerCase();
+                    let termStructure = new Term(term);
 
-            // execute the prefix search, if selected
-            if (searchTypes.prefix) {
-                prefix_search_results = this._fstSearcher.prefix_search(term).map(item => parseInt(item));
-                this.isFuzzySearch = true;
+                    // execute the prefix search, if selected
+                    if (searchTypes.prefix) {
+                        prefix_search_results = this._fstSearcher.prefix_search(term).map(item => parseInt(item));
+                        this.isFuzzySearch = true;
+                    }
+
+                    // execute the levenstein_1 search, if selected
+                    if (searchTypes.levenstein_1) {
+                        levenstein_1_search_results = this._fstSearcher.levenstein_1_search(term).map(item => parseInt(item));
+                        this.isFuzzySearch = true;
+                    }
+
+                    // execute the levenstein_2 search, if selected
+                    if (searchTypes.levenstein_2) {
+                        levenstein_2_search_results = this._fstSearcher.levenstein_2_search(term).map(item => parseInt(item));
+                        this.isFuzzySearch = true;
+                    }
+
+                    // execute the ngram search, if selected
+                    if (searchTypes.ngram) {
+                        ngramSearchResults = await this._ngramSearch(term);
+
+                        this.isFuzzySearch = true;
+                    }
+
+                    // aggregate the suggestions id-s
+                    let suggestionIDs = new Set(Array.from([prefix_search_results, levenstein_1_search_results, levenstein_2_search_results, ngramSearchResults]).flat());
+                    // aggregate the suggestions
+                    let suggestions = Array.from(suggestionIDs).map(item => this._words[item]).sort();
+                    for (let suggestion of suggestions) {
+                        termStructure.suggestions.set(suggestion, []);
+                    }
+
+                    // finally, execute the exact search
+                    let termIndex = this._words.indexOf(term);
+                    if (termIndex !== -1) {
+                        await fetch(new URL(`${this._calculateRelativeURL(this._words.indexOf(term))}.json`, this.exactIndexBaseURL), { mode: "cors" })
+                            .then(async response => {
+                                if (response.status === 200) {
+                                    let data = await response.json();
+                                    termStructure.suggestions.set(term, new Map(Object.entries(data)));
+                                } else {
+                                    alert("An error occured during search. Please, retry.");
+                                }
+                            });
+                    } else {
+                        this.allExactMatches = false;
+                        termStructure.isExactMatch = false;
+                    }
+
+                    return termStructure;
+                case item.hasOwnProperty("w-proximity-operator"):
+                    return item;
+                    break;
             }
-
-            // execute the levenstein_1 search, if selected
-            if (searchTypes.levenstein_1) {
-                levenstein_1_search_results = this._fstSearcher.levenstein_1_search(term).map(item => parseInt(item));
-                this.isFuzzySearch = true;
-            }
-
-            // execute the levenstein_2 search, if selected
-            if (searchTypes.levenstein_2) {
-                levenstein_2_search_results = this._fstSearcher.levenstein_2_search(term).map(item => parseInt(item));
-                this.isFuzzySearch = true;
-            }
-
-            // execute the ngram search, if selected
-            if (searchTypes.ngram) {
-                ngramSearchResults = await this._ngramSearch(term);
-
-                this.isFuzzySearch = true;
-            }
-
-            // aggregate the suggestions id-s
-            let suggestionIDs = new Set(Array.from([prefix_search_results, levenstein_1_search_results, levenstein_2_search_results, ngramSearchResults]).flat());
-            // aggregate the suggestions
-            let suggestions = Array.from(suggestionIDs).map(item => this._words[item]).sort();
-            for (let suggestion of suggestions) {
-                termStructure.suggestions.set(suggestion, []);
-            }
-
-            // finally, execute the exact search
-            let termIndex = this._words.indexOf(term);
-            if (termIndex !== -1) {
-                await fetch(new URL(`${this._calculateRelativeURL(this._words.indexOf(term))}.json`, this.exactIndexBaseURL), { mode: "cors" })
-                    .then(async response => {
-                        if (response.status === 200) {
-                            let data = await response.json();
-                            termStructure.suggestions.set(term, Object.keys(data));
-                        } else {
-                            alert("An error occured during search. Please, retry.");
-                        }
-                    });
-            } else {
-                this.allExactMatches = false;
-                termStructure.isExactMatch = false;
-            }
-
-            return termStructure;
         });
 
         // aggregate the search results, for all terms
         let aggregatedMatches = await Promise.all(promises);
-        aggregatedMatches.forEach(item => this.termStructures.push(item));
+        aggregatedMatches.forEach(item => this.termAndOperatorsStructures.push(item));
+    }
+
+    intersectSearchResult = () => {
+        let positionalIntersectionResult = new Map();
+        let w_distance = 0;
+
+        this.termAndOperatorsStructures.forEach(item => {
+            switch (true) {
+                case item.hasOwnProperty("term"):
+                    let term = item.term.toLowerCase();
+                    let positionalIndexRecords = item.suggestions.get(term);
+                    positionalIntersectionResult = this._positionalIndexRecordsIntersection(positionalIntersectionResult, positionalIndexRecords, w_distance);
+                    break;
+                case item.hasOwnProperty("w-proximity-operator"):
+                    w_distance = item["w-proximity-operator"];
+                    break;
+            }
+        });
+
+        return positionalIntersectionResult;
     }
 
     _ngramSearch = async (term) => {
@@ -215,7 +255,8 @@ export default class Searcher {
                 secondSet = sets[1];
                 commonIDs = this._intersectTwoArrays([
                     firstSet,
-                    secondSet
+                    secondSet,
+                    0
                 ]);
                 break;
             // case with at least three selected sets
@@ -224,14 +265,16 @@ export default class Searcher {
                 secondSet = sets[1];
                 commonIDs = this._intersectTwoArrays([
                     firstSet,
-                    secondSet
+                    secondSet,
+                    0
                 ]);
 
                 for (let i = 2; i < setsNumber; i++) {
                     let ithSelectedSuggestion = sets[i];
                     commonIDs = this._intersectTwoArrays([
                         commonIDs,
-                        ithSelectedSuggestion
+                        ithSelectedSuggestion,
+                        0
                     ]);
                 }
         }
@@ -241,8 +284,8 @@ export default class Searcher {
 
     _intersectTwoArrays = (arrays) => {
         let result = [];
-        let a = arrays[0];
-        let b = arrays[1];
+        let a = [...arrays[0]];
+        let b = [...arrays[1]];
 
         while (a.length > 0 && b.length > 0) {
             let left = +a[0];
@@ -263,6 +306,34 @@ export default class Searcher {
         return result;
     }
 
+    _intersectTwoArraysWithDistance = (arrays, distance) => {
+        let result = [];
+        let a = [...arrays[0]];
+        let b = [...arrays[1]];
+
+        while (a.length > 0 && b.length > 0) {
+            let left = +a[0];
+            let right = +b[0] - distance - 1;
+
+            if (left < right) {
+                a.shift();
+            }
+            else if (left > right) {
+                b.shift();
+            }
+            else /* they're equal */ {
+                result.push(a.shift());
+                b.shift();
+            }
+        }
+
+        if (result.length > 0) {
+            result = result.map(item => [item, item + distance + 1])
+        }
+
+        return result;
+    }
+
     _getNGrams = (s, len, paddingToken) => {
         s = paddingToken.repeat(len - 1) + s.toLowerCase() + paddingToken.repeat(len - 1);
         let v = new Array(s.length - len + 1);
@@ -271,6 +342,81 @@ export default class Searcher {
         }
 
         return v;
+    }
+
+    _positionalIndexRecordsIntersection = (positionalIndexRecord_1, positionalIndexRecord_2, distance, search_type, ordered) => {
+        if (positionalIndexRecord_1 instanceof Object) {
+            positionalIndexRecord_1 = new Map(Object.entries(positionalIndexRecord_1));
+        }
+        if (positionalIndexRecord_2 instanceof Object) {
+            positionalIndexRecord_2 = new Map(Object.entries(positionalIndexRecord_2));
+        }
+
+        let result = new Map();
+        let docIDs_1 = Array.from(positionalIndexRecord_1.keys());
+        let docIDs_2 = Array.from(positionalIndexRecord_2.keys());
+
+        if (docIDs_1.length === 0) {
+            return positionalIndexRecord_2;
+        }
+        if (docIDs_2.length === 0) {
+            return positionalIndexRecord_1;
+        }
+
+        let commonDocIDs = _intersectTwoArrays([docIDs_1, docIDs_2]);
+
+        for (let common_doc_ID of commonDocIDs) {
+            let positions_1 = positionalIndexRecord_1.get(common_doc_ID);
+            let positions_2 = positionalIndexRecord_2.get(common_doc_ID);
+            let proximity_positions = [];
+
+            if (distance === -1) {
+                proximity_positions = positions_1.concat(positions_2);
+            } else {
+                switch (search_type) {
+                    case "exact":
+                        proximity_positions = _intersectionWithExactDistance(positions_1, positions_2, distance, ordered);
+                        break;
+                    case "maximum":
+                        proximity_positions = _intersectionWithMaximumDistance(positions_1, positions_2, distance, ordered);
+                        break;
+                }
+            }
+
+            if (proximity_positions.length > 0) {
+                proximity_positions = new Uint32Array(proximity_positions);
+                proximity_positions.sort();
+                proximity_positions = Array.from(new Set(proximity_positions));
+
+                result.set(common_doc_ID, proximity_positions);
+            }
+        }
+
+        return result;
+    }
+
+    _intersectionWithExactDistance = (positions_1, positions_2, distance, ordered) => {
+        let proximity_positions = _intersectTwoArraysWithDistance([positions_1, positions_2], distance);
+
+        if (!ordered) {
+            let reverse_proximity_positions = _intersectTwoArraysWithDistance([positions_2, positions_1], distance);
+            proximity_positions = proximity_positions.concat(reverse_proximity_positions);
+        }
+
+        //proximity_positions = proximity_positions.flatMap(item => [item, item + distance + 1]);
+        proximity_positions = proximity_positions.flat();
+
+        return proximity_positions;
+    }
+
+    _intersectionWithMaximumDistance = (positions_1, positions_2, distance, ordered) => {
+        let proximity_positions = [];
+
+        for (let step = 0; step <= distance; step++) {
+            proximity_positions = proximity_positions.concat(_intersectionWithExactDistance(positions_1, positions_2, step, ordered));
+        }
+
+        return proximity_positions;
     }
 };
 
@@ -287,3 +433,7 @@ export class Term {
         this.suggestions = new Map();
     }
 };
+
+// https://highlyscalable.wordpress.com/2012/06/05/fast-intersection-sorted-lists-sse/
+// https://arxiv.org/pdf/1401.6399.pdf
+// https://arxiv.org/pdf/1402.4466.pdf

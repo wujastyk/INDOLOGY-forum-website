@@ -302,7 +302,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value="the w/1 first"></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="unicode proposed"></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                     <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
@@ -347,33 +347,29 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // get the search string
         let searchString = this._searchStringInput.value.trim();
-        let [isProximitySearch, ...searchStringAST] = queryStringParser.parse(searchString);
-        console.log(isProximitySearch);
-        console.log(searchStringAST);
-
-        // test if this is a proximity search
-        
-        
-        //if ((searchString.startsWith("\"") && searchString.endsWith("\"")) || searchString.contains(("NEAR/"))) {
-        //    this._isProximitySearch = true;
-        //}
-        //console.log(this._isProximitySearch);
-        //console.log(searchString);
+        let searchStringAST = queryStringParser.parse(searchString);
 
         // process the search string (currently, only by tokenisation)
         let searchStringTokens = searchString.split(" ");
+        //this._searcher.terms = searchStringTokens;
 
         // execute the selected searches and get the matching IDs
-        this._searcher.terms = searchStringTokens;
+        this._searcher.searchStringAST = searchStringAST;
         await this._searcher.executeSearch(this._searchTypes);
 
         // case when there exist an exact match for each search string
         if (this._searcher.allExactMatches) {
-            let exactMatchingDocumentIDs = [];
-            this._searcher.termStructures.forEach((termStructure) => {
-                exactMatchingDocumentIDs.push([...termStructure.suggestions.get(termStructure.term)]);
-            });
-            this._matchingDocumentIDs = this._searcher._intersectIDs(exactMatchingDocumentIDs);
+
+            this._matchingDocumentIDs = Array.from(this._searcher.intersectSearchResult().keys());
+            console.log(this._matchingDocumentIDs);
+            //this._matchingDocumentIDs = this._searcher._intersectIDs(exactMatchingDocumentIDs);
+
+            // ===
+            /*             let exactMatchingDocumentIDs = [];
+                        this._searcher.termAndOperatorsStructures.forEach((termStructure) => {
+                            exactMatchingDocumentIDs.push([...termStructure.suggestions.get(termStructure.term)]);
+                        }); */
+            // ===
 
             this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
@@ -383,7 +379,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             // if it is any fuzzy search, display the suggestions
             if (this._searcher.isFuzzySearch) {
                 let suggestionStructures = new Map();
-                this._searcher.termStructures.forEach((termStructure) => {
+                this._searcher.termAndOperatorsStructures.forEach((termStructure) => {
                     suggestionStructures.set(termStructure.term, termStructure.suggestions);
                 });
 
@@ -495,6 +491,8 @@ export default class MultipleIndexesSearcher extends LitElement {
                     mode: "cors",
                 });
                 text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+                let text_1 = this._tokenizeToWords(text);
+                console.log(text_1);
 
                 let resultHTMLString = this._resultItemTemplate({
                     currentPageDocumentID,
@@ -510,6 +508,8 @@ export default class MultipleIndexesSearcher extends LitElement {
             this._searchResultContainer.innerHTML = searchResultHTMLString;
 
             // highlight the search results
+            //this._markInstance.markRegExp(/the([\u0000-\u0019\u0021-\uFFFF]){2}first/gumi);
+
             this._markInstance.mark(this._searcher.markTerms, {
                 "accuracy": {
                     "value": "exactly",
@@ -624,6 +624,36 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._suggestionListContent.innerHTML = "";
         this._suggestionListsContainer.style.display = "none";
     }
+
+    _tokenizeToWords = (text) => {
+        let WORD_BOUNDARY_CHARS = ["\t", "\r\n", "\u2000-\u206F", "\u2E00-\u2E7F",
+            "\u00A0", " ", "!", "\"", "#", "$", "%", "&", "(", ")",
+            "*", "+", ",", "\\-", ".", "\\/", ":", ";", "<", "=",
+            ">", "@", "\\\\", "\[", "\\]", "^", "_", "`", "{", "|", "}", "~", "'"];
+        let SPLIT_REGEX = new RegExp(`([^${WORD_BOUNDARY_CHARS.join()}]+)`);
+
+        let tokens = text.split(SPLIT_REGEX).filter(Boolean);
+
+        let startOffset = 0;
+        let words = [];
+    
+        tokens.forEach(token => {
+            let tokenLength = token.length;
+    
+            if (SPLIT_REGEX.test(token)) {
+                words.push({ "word": token, "startOffset": startOffset, "endOffset": startOffset + tokenLength });
+            }
+            startOffset += tokenLength;
+        });
+    
+        return words;
+    }
+
+
 }
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
+/*
+around / o-around
+near / o-near
+*/

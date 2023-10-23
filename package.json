@@ -2,5 +2,8 @@
   "dependencies": {
     "pegjs": "^0.10.0",
     "toml": "^3.0.0"
+  },
+  "devDependencies": {
+    "assert": "^2.1.0"
   }
 }
