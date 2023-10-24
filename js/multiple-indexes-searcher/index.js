@@ -469,6 +469,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     async _displaySearchResultsPage(newPageNumber) {
         let matchingDocumentIDs = this._matchingDocumentIDs;
+        this._searchResultContainer.innerHTML = "";
 
         if (matchingDocumentIDs.length !== 0) {
             let startIndex = (newPageNumber - 1) * this.paginationLimit;
@@ -481,12 +482,13 @@ export default class MultipleIndexesSearcher extends LitElement {
             for (let currentPageDocumentID of currentPageDocumentIDs) {
                 // initialisations
                 ++current_index;
+                ++currentPageDocumentIDsIndex;
                 let documentRelativeIRI = this._documentRelativeIRIs[currentPageDocumentID];
 
                 // create the section for the document
                 let textSectionHTMLString = this._resultItemTemplate({
                     currentPageDocumentID,
-                    "index": startIndex + 1 + currentPageDocumentIDsIndex,
+                    "index": startIndex + currentPageDocumentIDsIndex,
                     documentRelativeIRI,
                     "text": ""
                 });
@@ -516,26 +518,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                 // highlight the search results
                 var instance = new Mark(current_section_content_selector);
                 instance.markRanges(highlight_ranges);
-
-                currentPageDocumentIDsIndex++;
             }
-
-            /*this._markInstance.mark(this._searcher.markTerms, {
-                "accuracy": {
-                    "value": "exactly",
-                    "limiters": [
-                        '„', '“',
-                        // punctuation-regex › regex101
-                        // https://www.npmjs.com/package/punctuation-regex
-                        '-', '‒', '–', '—', '―', '|', '$', '&', '~', '=',
-                        '\\', '/', '⁄', '@', '+', '*', '!', '?', '(', '{', '[', ']',
-                        '}', ')', '<', '>', '‹', '›', '«', '»', '.', ';', ':', '^',
-                        '‘', '’', '“', '”', "'", '"', ',', '،', '、', '`', '·', '•',
-                        '†', '‡', '°', '″', '¡', '¿', '※', '#', '№', '÷', '×', '%',
-                        '‰', '−', '‱', '¶', '′', '‴', '§', '_', '‖', '¦',
-                    ],
-                },
-            });*/
         }
     }
 
@@ -664,6 +647,6 @@ export default class MultipleIndexesSearcher extends LitElement {
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
 /*
-highlight / search by suggestions / search by quoted expression
+fix the highlight / search by suggestions
 load the data from the mailing list archive
 */
