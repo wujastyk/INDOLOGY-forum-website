@@ -302,7 +302,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="unicode o-exact/1 encoding"></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                     <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
@@ -492,7 +492,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                 });
                 text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
                 let text_1 = this._tokenizeToWords(text);
-                console.log(text_1);
+                //console.log(text_1);
 
                 let resultHTMLString = this._resultItemTemplate({
                     currentPageDocumentID,

@@ -140,7 +140,7 @@ export default class Searcher {
                     }
 
                     return termStructure;
-                case item.hasOwnProperty("w-proximity-operator"):
+                default:
                     return item;
                     break;
             }
@@ -153,26 +153,75 @@ export default class Searcher {
 
     intersectSearchResult = () => {
         let positionalIntersectionResult = new Map();
-        let w_distance = 0;
-        
+        let distance = 0;
+        let operator = "and";
+
         this.termAndOperatorsStructures.forEach(item => {
+            console.log(item);
             switch (true) {
                 case item.hasOwnProperty("term"):
                     let term = item.term.toLowerCase();
                     let positionalIndexRecords = item.suggestions.get(term);
-                    console.log(positionalIntersectionResult);
-                    console.log(positionalIndexRecords);
 
-                    positionalIntersectionResult = this._positionalIndexRecordsIntersection(positionalIntersectionResult, positionalIndexRecords, w_distance, "exact", true);
+                    switch (operator) {
+                        case "and":
+                            positionalIntersectionResult = this._andSearch(positionalIntersectionResult, positionalIndexRecords);
+                            break;
+                        case "o-exact":
+                            positionalIntersectionResult = this._oExactSearch(positionalIntersectionResult, positionalIndexRecords, distance);
+                            break;
+                        case "u-exact":
+                            positionalIntersectionResult = this._uExactSearch(positionalIntersectionResult, positionalIndexRecords, distance);
+                            break;
+                        case "o-max":
+                            positionalIntersectionResult = this._oMaximumSearch(positionalIntersectionResult, positionalIndexRecords, distance);
+                            break;
+                        case "u-max":
+                            positionalIntersectionResult = this._uMaximumSearch(positionalIntersectionResult, positionalIndexRecords, distance);
+                            break;
+                    };
                     break;
-                case item.hasOwnProperty("w-proximity-operator"):
-                    w_distance = item["w-proximity-operator"];
+                case item.hasOwnProperty("o-exact"):
+                    distance = item["o-exact"];
+                    operator = "o-exact";
+                    break;
+                case item.hasOwnProperty("u-exact"):
+                    distance = item["u-exact"];
+                    operator = "u-exact";
+                    break;
+                case item.hasOwnProperty("o-max"):
+                    distance = item["o-max"];
+                    operator = "o-max";
+                    break;
+                case item.hasOwnProperty("u-max"):
+                    distance = item["u-max"];
+                    operator = "u-max";
                     break;
             }
         });
 
         return positionalIntersectionResult;
     }
+
+    _andSearch = (positional_index_records_1, positional_index_records_2) => {
+        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, -1, "exact", true);
+    }
+
+    _oExactSearch = (positional_index_records_1, positional_index_records_2, distance) => {
+        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", true);
+    }
+    
+    _uExactSearch = (positional_index_records_1, positional_index_records_2, distance) => {
+        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", false);
+    }
+    
+    _oMaximumSearch = (positional_index_records_1, positional_index_records_2, distance) => {
+        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", true);
+    }
+    
+    _uMaximumSearch = (positional_index_records_1, positional_index_records_2, distance) => {
+        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", false);
+    }    
 
     _ngramSearch = async (term) => {
         // calculate the ngrams
@@ -351,7 +400,7 @@ export default class Searcher {
         let result = new Map();
         let docIDs_1 = Array.from(positionalIndexRecord_1.keys());
         let docIDs_2 = Array.from(positionalIndexRecord_2.keys());
-        
+
         if (docIDs_1.length === 0) {
             return positionalIndexRecord_2;
         }
