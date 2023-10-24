@@ -59,6 +59,10 @@ export default class MultipleIndexesSearcher extends LitElement {
         _matchingDocumentIDs: {
             type: Array,
         },
+        /** The list of positions of the matching documents, resulted after intersections of ID lists for words. */
+        _matchingDocumentPositions: {
+            type: Map,
+        },
         _matchingDocumentNumber: {
             state: true
         },
@@ -179,6 +183,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         this._matchingDocumentNumber = 0;
         this._matchingDocumentIDs = [];
+        this._matchingDocumentPositions = new Map();
 
         // Variables for the NGram index
         this._ngram_similarity_threshold = 0.7;
@@ -302,7 +307,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value="unicode o-exact/1 encoding"></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="unicode encoding"></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                     <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
@@ -347,30 +352,19 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // get the search string
         let searchString = this._searchStringInput.value.trim();
-        let searchStringAST = queryStringParser.parse(searchString);
 
-        // process the search string (currently, only by tokenisation)
-        let searchStringTokens = searchString.split(" ");
-        //this._searcher.terms = searchStringTokens;
+        // generate the search string abstract syntax tree
+        let searchStringAST = queryStringParser.parse(searchString);
+        this._searcher.searchStringAST = searchStringAST;
 
         // execute the selected searches and get the matching IDs
-        this._searcher.searchStringAST = searchStringAST;
         await this._searcher.executeSearch(this._searchTypes);
 
         // case when there exist an exact match for each search string
         if (this._searcher.allExactMatches) {
 
-            this._matchingDocumentIDs = Array.from(this._searcher.intersectSearchResult().keys());
-            console.log(this._matchingDocumentIDs);
-            //this._matchingDocumentIDs = this._searcher._intersectIDs(exactMatchingDocumentIDs);
-
-            // ===
-            /*             let exactMatchingDocumentIDs = [];
-                        this._searcher.termAndOperatorsStructures.forEach((termStructure) => {
-                            exactMatchingDocumentIDs.push([...termStructure.suggestions.get(termStructure.term)]);
-                        }); */
-            // ===
-
+            this._matchingDocumentPositions = this._searcher.intersectSearchResult();
+            this._matchingDocumentIDs = Array.from(this._matchingDocumentPositions.keys());
             this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
             // display the paginated search results
@@ -476,41 +470,57 @@ export default class MultipleIndexesSearcher extends LitElement {
     async _displaySearchResultsPage(newPageNumber) {
         let matchingDocumentIDs = this._matchingDocumentIDs;
 
-        if (matchingDocumentIDs !== 0) {
+        if (matchingDocumentIDs.length !== 0) {
             let startIndex = (newPageNumber - 1) * this.paginationLimit;
             let endIndex = newPageNumber * this.paginationLimit;
             let currentPageDocumentIDs = matchingDocumentIDs.slice(startIndex, endIndex);
 
             // generate the HTML string with the results on the current page
-            let searchResultHTMLString = "";
             let currentPageDocumentIDsIndex = 0;
+            let current_index = 0;
             for (let currentPageDocumentID of currentPageDocumentIDs) {
+                // initialisations
+                ++current_index;
                 let documentRelativeIRI = this._documentRelativeIRIs[currentPageDocumentID];
+
+                // create the section for the document
+                let textSectionHTMLString = this._resultItemTemplate({
+                    currentPageDocumentID,
+                    "index": startIndex + 1 + currentPageDocumentIDsIndex,
+                    documentRelativeIRI,
+                    "text": ""
+                });
+                this._searchResultContainer.insertAdjacentHTML("beforeend", textSectionHTMLString);
+                let current_section_content_selector = this._searchResultContainer.querySelector(`div.result-item:nth-of-type(${current_index}) > div.result-item-content`);
+
+                // get the text of the document
                 let textURL = new URL(documentRelativeIRI, this.documentsBaseIRI);
                 let text = await fetch(textURL).then((response) => response.text(), {
                     mode: "cors",
                 });
                 text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-                let text_1 = this._tokenizeToWords(text);
-                //console.log(text_1);
+                current_section_content_selector.innerHTML = text;
 
-                let resultHTMLString = this._resultItemTemplate({
-                    currentPageDocumentID,
-                    "index": startIndex + 1 + currentPageDocumentIDsIndex,
-                    documentRelativeIRI,
-                    text
+                // tokenize the text by words
+                let text_tokens = this._tokenizeToWords(text);
+
+                // generate the highlight ranges
+                let positions = this._matchingDocumentPositions.get(currentPageDocumentID);
+                let highlight_ranges = [];
+                positions.forEach(position => {
+                    let text_token = text_tokens[position];
+                    let range = { "start": text_token.start, "length": text_token.length };
+                    highlight_ranges.push(range);
                 });
-                searchResultHTMLString += resultHTMLString;
+
+                // highlight the search results
+                var instance = new Mark(current_section_content_selector);
+                instance.markRanges(highlight_ranges);
 
                 currentPageDocumentIDsIndex++;
             }
 
-            this._searchResultContainer.innerHTML = searchResultHTMLString;
-
-            // highlight the search results
-            //this._markInstance.markRegExp(/the([\u0000-\u0019\u0021-\uFFFF]){2}first/gumi);
-
-            this._markInstance.mark(this._searcher.markTerms, {
+            /*this._markInstance.mark(this._searcher.markTerms, {
                 "accuracy": {
                     "value": "exactly",
                     "limiters": [
@@ -525,7 +535,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                         '‰', '−', '‱', '¶', '′', '‴', '§', '_', '‖', '¦',
                     ],
                 },
-            });
+            });*/
         }
     }
 
@@ -636,16 +646,16 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         let startOffset = 0;
         let words = [];
-    
+
         tokens.forEach(token => {
             let tokenLength = token.length;
-    
+
             if (SPLIT_REGEX.test(token)) {
-                words.push({ "word": token, "startOffset": startOffset, "endOffset": startOffset + tokenLength });
+                words.push({ "word": token, "start": startOffset, "length": tokenLength });
             }
             startOffset += tokenLength;
         });
-    
+
         return words;
     }
 
@@ -654,6 +664,6 @@ export default class MultipleIndexesSearcher extends LitElement {
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
 /*
-around / o-around
-near / o-near
+highlight / search by suggestions / search by quoted expression
+load the data from the mailing list archive
 */

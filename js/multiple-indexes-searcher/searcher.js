@@ -157,7 +157,6 @@ export default class Searcher {
         let operator = "and";
 
         this.termAndOperatorsStructures.forEach(item => {
-            console.log(item);
             switch (true) {
                 case item.hasOwnProperty("term"):
                     let term = item.term.toLowerCase();
