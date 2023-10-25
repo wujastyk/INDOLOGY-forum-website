@@ -359,7 +359,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // execute the selected searches and get the matching IDs
         await this._searcher.executeSearch(this._searchTypes);
-
+        
         // case when there exist an exact match for each search string
         if (this._searcher.allExactMatches) {
 
@@ -369,7 +369,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
             // display the paginated search results
             await this._displaySearchResultsPage(1);
-
+            
             // if it is any fuzzy search, display the suggestions
             if (this._searcher.isFuzzySearch) {
                 let suggestionStructures = new Map();
@@ -380,6 +380,13 @@ export default class MultipleIndexesSearcher extends LitElement {
                 this._displaySuggestions(suggestionStructures);
             }
         } else {
+            let suggestionStructures = new Map();
+            this._searcher.termAndOperatorsStructures.forEach((termStructure) => {
+                suggestionStructures.set(termStructure.term, termStructure.suggestions);
+            });
+
+            this._displaySuggestions(suggestionStructures);
+                        
             this.requestUpdate("_matchingDocumentNumber");
         }
     }
@@ -500,11 +507,13 @@ export default class MultipleIndexesSearcher extends LitElement {
                 let text = await fetch(textURL).then((response) => response.text(), {
                     mode: "cors",
                 });
-                text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-                current_section_content_selector.innerHTML = text;
 
                 // tokenize the text by words
                 let text_tokens = this._tokenizeToWords(text);
+
+                // display the text
+                text = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+                current_section_content_selector.innerHTML = text;
 
                 // generate the highlight ranges
                 let positions = this._matchingDocumentPositions.get(currentPageDocumentID);
@@ -647,6 +656,6 @@ export default class MultipleIndexesSearcher extends LitElement {
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
 /*
-fix the highlight / search by suggestions
+search by suggestions
 load the data from the mailing list archive
 */
