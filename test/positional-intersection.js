@@ -1,4 +1,5 @@
 import assert from "assert";
+import PositionalIntersector from "../js/multiple-indexes-searcher/positional-intersector.js";
 
 // get the positional index records
 /* console.time("get the positional index records");

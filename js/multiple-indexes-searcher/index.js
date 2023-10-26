@@ -307,7 +307,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value="unicode encoding"></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value="unicode encodinx"></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                     <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
@@ -363,7 +363,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         // case when there exist an exact match for each search string
         if (this._searcher.allExactMatches) {
 
-            this._matchingDocumentPositions = this._searcher.intersectSearchResult();
+            this._matchingDocumentPositions = this._searcher.intersect();
             this._matchingDocumentIDs = Array.from(this._matchingDocumentPositions.keys());
             this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
@@ -540,7 +540,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // initialize the DOMString for suggestions
         let suggestionsDOMString = "";
-
+        console.log(suggestionStructures);
         // generate the form controls for suggestions
         for (let suggestionStructure of suggestionStructures) {
             let term = suggestionStructure[0];

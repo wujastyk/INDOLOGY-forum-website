@@ -1,5 +1,6 @@
 import init, { Searcher as FstSearcher } from "https://solirom.gitlab.io/search-engines/search-engine/search_engine.js";
 import k_combinations from "../ngram-index-searcher/combinations.js";
+import PositionalIntersector from "./positional-intersector.js";
 // https://solirom.gitlab.io/web-components/fst-index-search/search_engine.mjs
 await init();
 
@@ -151,76 +152,9 @@ export default class Searcher {
         aggregatedMatches.forEach(item => this.termAndOperatorsStructures.push(item));
     }
 
-    intersectSearchResult = () => {
-        let positionalIntersectionResult = new Map();
-        let distance = 0;
-        let operator = "and";
-
-        this.termAndOperatorsStructures.forEach(item => {
-            switch (true) {
-                case item.hasOwnProperty("term"):
-                    let term = item.term.toLowerCase();
-                    let positionalIndexRecords = item.suggestions.get(term);
-
-                    switch (operator) {
-                        case "and":
-                            positionalIntersectionResult = this._andSearch(positionalIntersectionResult, positionalIndexRecords);
-                            break;
-                        case "o-exact":
-                            positionalIntersectionResult = this._oExactSearch(positionalIntersectionResult, positionalIndexRecords, distance);
-                            break;
-                        case "u-exact":
-                            positionalIntersectionResult = this._uExactSearch(positionalIntersectionResult, positionalIndexRecords, distance);
-                            break;
-                        case "o-max":
-                            positionalIntersectionResult = this._oMaximumSearch(positionalIntersectionResult, positionalIndexRecords, distance);
-                            break;
-                        case "u-max":
-                            positionalIntersectionResult = this._uMaximumSearch(positionalIntersectionResult, positionalIndexRecords, distance);
-                            break;
-                    };
-                    break;
-                case item.hasOwnProperty("o-exact"):
-                    distance = item["o-exact"];
-                    operator = "o-exact";
-                    break;
-                case item.hasOwnProperty("u-exact"):
-                    distance = item["u-exact"];
-                    operator = "u-exact";
-                    break;
-                case item.hasOwnProperty("o-max"):
-                    distance = item["o-max"];
-                    operator = "o-max";
-                    break;
-                case item.hasOwnProperty("u-max"):
-                    distance = item["u-max"];
-                    operator = "u-max";
-                    break;
-            }
-        });
-
-        return positionalIntersectionResult;
+    intersect = () => {
+        return PositionalIntersector.intersectPositionalIndexRecords(this.termAndOperatorsStructures);
     }
-
-    _andSearch = (positional_index_records_1, positional_index_records_2) => {
-        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, -1, "exact", true);
-    }
-
-    _oExactSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", true);
-    }
-    
-    _uExactSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", false);
-    }
-    
-    _oMaximumSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", true);
-    }
-    
-    _uMaximumSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-        return this._positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", false);
-    }    
 
     _ngramSearch = async (term) => {
         // calculate the ngrams
@@ -357,34 +291,6 @@ export default class Searcher {
         return result;
     }
 
-    _intersectTwoArraysWithDistance = (arrays, distance) => {
-        let result = [];
-        let a = [...arrays[0]];
-        let b = [...arrays[1]];
-
-        while (a.length > 0 && b.length > 0) {
-            let left = +a[0];
-            let right = +b[0] - distance - 1;
-
-            if (left < right) {
-                a.shift();
-            }
-            else if (left > right) {
-                b.shift();
-            }
-            else /* they're equal */ {
-                result.push(a.shift());
-                b.shift();
-            }
-        }
-
-        if (result.length > 0) {
-            result = result.map(item => [item, item + distance + 1])
-        }
-
-        return result;
-    }
-
     _getNGrams = (s, len, paddingToken) => {
         s = paddingToken.repeat(len - 1) + s.toLowerCase() + paddingToken.repeat(len - 1);
         let v = new Array(s.length - len + 1);
@@ -393,74 +299,6 @@ export default class Searcher {
         }
 
         return v;
-    }
-
-    _positionalIndexRecordsIntersection = (positionalIndexRecord_1, positionalIndexRecord_2, distance, search_type, ordered) => {
-        let result = new Map();
-        let docIDs_1 = Array.from(positionalIndexRecord_1.keys());
-        let docIDs_2 = Array.from(positionalIndexRecord_2.keys());
-
-        if (docIDs_1.length === 0) {
-            return positionalIndexRecord_2;
-        }
-        if (docIDs_2.length === 0) {
-            return positionalIndexRecord_1;
-        }
-
-        let commonDocIDs = this._intersectTwoArrays([docIDs_1, docIDs_2]);
-
-        for (let common_doc_ID of commonDocIDs) {
-            let positions_1 = positionalIndexRecord_1.get(common_doc_ID);
-            let positions_2 = positionalIndexRecord_2.get(common_doc_ID);
-            let proximity_positions = [];
-
-            if (distance === -1) {
-                proximity_positions = positions_1.concat(positions_2);
-            } else {
-                switch (search_type) {
-                    case "exact":
-                        proximity_positions = this._intersectionWithExactDistance(positions_1, positions_2, distance, ordered);
-                        break;
-                    case "maximum":
-                        proximity_positions = this._intersectionWithMaximumDistance(positions_1, positions_2, distance, ordered);
-                        break;
-                }
-            }
-
-            if (proximity_positions.length > 0) {
-                proximity_positions = new Uint32Array(proximity_positions);
-                proximity_positions.sort();
-                proximity_positions = Array.from(new Set(proximity_positions));
-
-                result.set(common_doc_ID, proximity_positions);
-            }
-        }
-
-        return result;
-    }
-
-    _intersectionWithExactDistance = (positions_1, positions_2, distance, ordered) => {
-        let proximity_positions = this._intersectTwoArraysWithDistance([positions_1, positions_2], distance);
-
-        if (!ordered) {
-            let reverse_proximity_positions = this._intersectTwoArraysWithDistance([positions_2, positions_1], distance);
-            proximity_positions = proximity_positions.concat(reverse_proximity_positions);
-        }
-
-        //proximity_positions = proximity_positions.flatMap(item => [item, item + distance + 1]);
-        proximity_positions = proximity_positions.flat();
-
-        return proximity_positions;
-    }
-
-    _intersectionWithMaximumDistance = (positions_1, positions_2, distance, ordered) => {
-        let proximity_positions = [];
-
-        for (let step = 0; step <= distance; step++) {
-            proximity_positions = proximity_positions.concat(this._intersectionWithExactDistance(positions_1, positions_2, step, ordered));
-        }
-
-        return proximity_positions;
     }
 };
 
