@@ -161,6 +161,34 @@ const intersectTwoArrays = (arrays) => {
     return result;
 }
 
+const intersectTwoArraysWithDistance = (arrays, distance) => {
+    let result = [];
+    let a = [...arrays[0]];
+    let b = [...arrays[1]];
+
+    while (a.length > 0 && b.length > 0) {
+        let left = +a[0];
+        let right = +b[0] - distance - 1;
+
+        if (left < right) {
+            a.shift();
+        }
+        else if (left > right) {
+            b.shift();
+        }
+        else /* they're equal */ {
+            result.push(a.shift());
+            b.shift();
+        }
+    }
+
+    if (result.length > 0) {
+        result = result.map(item => [item, item + distance + 1])
+    }
+
+    return result;
+};
+
 const PositionalIntersector = {
     intersectPositionalIndexRecords
 };

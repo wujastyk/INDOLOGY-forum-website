@@ -153,6 +153,7 @@ export default class Searcher {
     }
 
     intersect = () => {
+        console.log(this.termAndOperatorsStructures[0].suggestions);
         return PositionalIntersector.intersectPositionalIndexRecords(this.termAndOperatorsStructures);
     }
 
