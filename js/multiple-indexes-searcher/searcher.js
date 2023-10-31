@@ -7,6 +7,8 @@ await init();
 /**
  * @typedef {Object} Searcher
  * @property {Array.<string>} terms  
+ * @property {Array} searchStringAST
+ * @property {string}_terms_to_highlight
  * @property {Array.<Term>} termAndOperatorsStructures
  * @property {boolean} allExactMatches
  * @property {boolean} isFuzzySearch
@@ -15,12 +17,13 @@ await init();
  * @property {URl} ngramIndexBaseURL
  * @property {Number} ngramSimilarityThreshold
  * @property {Array.<string>} _words
+ * @method
  */
 export default class Searcher {
     constructor(exactIndexBaseURL, termsFSTmapURL, ngramIndexBaseURL, ngramSimilarityThreshold, _words) {
         this._terms = [];
         this._searchStringAST = [];
-        this._markTerms = null;
+        this._terms_to_highlight = null;
         this.termAndOperatorsStructures = [];
         this.allExactMatches = true;
         this.isFuzzySearch = false;
@@ -33,7 +36,7 @@ export default class Searcher {
 
     set terms(value) {
         this._terms = value;
-        this.markTerms = this.terms.join(" ");
+        this.termsToHighlight = this.terms.join(" ");
     }
 
     get terms() {
@@ -46,19 +49,21 @@ export default class Searcher {
             .filter(item => item.hasOwnProperty("term"))
             .map(item => item.term);
         this._terms = terms;
-        this.markTerms = this.terms.join(" ");
+
+        console.log(value);
+        this.termsToHighlight = this.terms.join(" ");
     }
 
     get searchStringAST() {
         return this._searchStringAST;
     }
 
-    set markTerms(value) {
-        this._markTerms = value;
+    set termsToHighlight(value) {
+        this._terms_to_highlight = value;
     }
 
-    get markTerms() {
-        return this._markTerms;
+    get termsToHighlight() {
+        return this._serializeAST();
     }
 
     init = async () => {
@@ -126,15 +131,8 @@ export default class Searcher {
                     // finally, execute the exact search
                     let termIndex = this._words.indexOf(term);
                     if (termIndex !== -1) {
-                        await fetch(new URL(`${this._calculateRelativeURL(this._words.indexOf(term))}.json`, this.exactIndexBaseURL), { mode: "cors" })
-                            .then(async response => {
-                                if (response.status === 200) {
-                                    let data = await response.json();
-                                    termStructure.suggestions.set(term, new Map(Object.entries(data)));
-                                } else {
-                                    alert("An error occured during search. Please, retry.");
-                                }
-                            });
+                        let positional_index_record = await this._fetchPositionalIndexRecord(termIndex);
+                        termStructure.suggestions.set(term, positional_index_record);
                     } else {
                         this.allExactMatches = false;
                         termStructure.isExactMatch = false;
@@ -153,8 +151,14 @@ export default class Searcher {
     }
 
     intersect = () => {
-        console.log(this.termAndOperatorsStructures[0].suggestions);
         return PositionalIntersector.intersectPositionalIndexRecords(this.termAndOperatorsStructures);
+    }
+
+    _fetchPositionalIndexRecord = async (termIndex) => {
+        let response = await fetch(new URL(`${this._calculateRelativeURL(termIndex)}.json`, this.exactIndexBaseURL), { mode: "cors" });
+        let positional_index_record = await response.json();
+
+        return new Map(Object.entries(positional_index_record));
     }
 
     _ngramSearch = async (term) => {
@@ -239,7 +243,7 @@ export default class Searcher {
             case 2:
                 firstSet = sets[0];
                 secondSet = sets[1];
-                commonIDs = this._intersectTwoArrays([
+                commonIDs = PositionalIntersector.intersectTwoArrays([
                     firstSet,
                     secondSet,
                     0
@@ -249,7 +253,7 @@ export default class Searcher {
             default:
                 firstSet = sets[0];
                 secondSet = sets[1];
-                commonIDs = this._intersectTwoArrays([
+                commonIDs = PositionalIntersector.intersectTwoArrays([
                     firstSet,
                     secondSet,
                     0
@@ -257,7 +261,7 @@ export default class Searcher {
 
                 for (let i = 2; i < setsNumber; i++) {
                     let ithSelectedSuggestion = sets[i];
-                    commonIDs = this._intersectTwoArrays([
+                    commonIDs = PositionalIntersector.intersectTwoArrays([
                         commonIDs,
                         ithSelectedSuggestion,
                         0
@@ -266,30 +270,6 @@ export default class Searcher {
         }
 
         return commonIDs;
-    }
-
-    _intersectTwoArrays = (arrays) => {
-        let result = [];
-        let a = [...arrays[0]];
-        let b = [...arrays[1]];
-
-        while (a.length > 0 && b.length > 0) {
-            let left = +a[0];
-            let right = +b[0];
-
-            if (left < right) {
-                a.shift();
-            }
-            else if (left > right) {
-                b.shift();
-            }
-            else /* they're equal */ {
-                result.push(a.shift());
-                b.shift();
-            }
-        }
-
-        return result;
     }
 
     _getNGrams = (s, len, paddingToken) => {
@@ -301,17 +281,40 @@ export default class Searcher {
 
         return v;
     }
+
+    _serializeAST = () => {
+        let result = [];
+
+        this.termAndOperatorsStructures.map(item => {
+            switch (true) {
+                case item.hasOwnProperty("term"):
+                    result.push(item.selected_suggestion);
+                    break;
+                default:
+                    result.push(Object.entries(item)[0].join("/"));
+                    break;
+            }
+        });
+
+        result = result
+            .join(" ")
+            .replaceAll("and/-1", "and");
+
+        return result;
+    }
 };
 
 /**
  * @typedef {Object} Term
  * @property {string} term
+ * @property {string} selected_suggestion
  * @property {boolean} isExactMatch
  * @property {Map.<string, Array.<number>>} suggestions
  */
 export class Term {
     constructor(term) {
         this.term = term;
+        this.selected_suggestion = term;
         this.isExactMatch = true;
         this.suggestions = new Map();
     }

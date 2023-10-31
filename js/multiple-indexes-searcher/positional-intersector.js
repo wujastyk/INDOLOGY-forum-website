@@ -2,11 +2,11 @@ const intersectPositionalIndexRecords = (searchStringAST) => {
     let positionalIntersectionResult = new Map();
     let distance = 0;
     let operator = "and";
-
+    
     searchStringAST.forEach(item => {
         switch (true) {
             case item.hasOwnProperty("term"):
-                let term = item.term.toLowerCase();
+                let term = item.selected_suggestion.toLowerCase();
                 let positionalIndexRecords = item.suggestions.get(term);
 
                 switch (operator) {
@@ -50,26 +50,26 @@ const intersectPositionalIndexRecords = (searchStringAST) => {
 };
 
 const andSearch = (positional_index_records_1, positional_index_records_2) => {
-    return positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, -1, "exact", true);
+    return _positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, -1, "exact", true);
 };
 
 const oExactSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-    return positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", true);
+    return _positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", true);
 };
 
 const uExactSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-    return positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", false);
+    return _positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "exact", false);
 };
 
 const oMaximumSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-    return positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", true);
+    return _positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", true);
 };
 
 const uMaximumSearch = (positional_index_records_1, positional_index_records_2, distance) => {
-    return positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", false);
+    return _positionalIndexRecordsIntersection(positional_index_records_1, positional_index_records_2, distance, "maximum", false);
 };
 
-const positionalIndexRecordsIntersection = (positionalIndexRecord_1, positionalIndexRecord_2, distance, search_type, ordered) => {
+const _positionalIndexRecordsIntersection = (positionalIndexRecord_1, positionalIndexRecord_2, distance, search_type, ordered) => {
     let result = new Map();
     let docIDs_1 = Array.from(positionalIndexRecord_1.keys());
     let docIDs_2 = Array.from(positionalIndexRecord_2.keys());
@@ -93,10 +93,10 @@ const positionalIndexRecordsIntersection = (positionalIndexRecord_1, positionalI
         } else {
             switch (search_type) {
                 case "exact":
-                    proximity_positions = intersectionWithExactDistance(positions_1, positions_2, distance, ordered);
+                    proximity_positions = _intersectionWithExactDistance(positions_1, positions_2, distance, ordered);
                     break;
                 case "maximum":
-                    proximity_positions = intersectionWithMaximumDistance(positions_1, positions_2, distance, ordered);
+                    proximity_positions = _intersectionWithMaximumDistance(positions_1, positions_2, distance, ordered);
                     break;
             }
         }
@@ -113,11 +113,11 @@ const positionalIndexRecordsIntersection = (positionalIndexRecord_1, positionalI
     return result;
 }
 
-const intersectionWithExactDistance = (positions_1, positions_2, distance, ordered) => {
-    let proximity_positions = intersectTwoArraysWithDistance([positions_1, positions_2], distance);
+const _intersectionWithExactDistance = (positions_1, positions_2, distance, ordered) => {
+    let proximity_positions = _intersectTwoArraysWithDistance([positions_1, positions_2], distance);
 
     if (!ordered) {
-        let reverse_proximity_positions = intersectTwoArraysWithDistance([positions_2, positions_1], distance);
+        let reverse_proximity_positions = _intersectTwoArraysWithDistance([positions_2, positions_1], distance);
         proximity_positions = proximity_positions.concat(reverse_proximity_positions);
     }
 
@@ -127,11 +127,11 @@ const intersectionWithExactDistance = (positions_1, positions_2, distance, order
     return proximity_positions;
 }
 
-const intersectionWithMaximumDistance = (positions_1, positions_2, distance, ordered) => {
+const _intersectionWithMaximumDistance = (positions_1, positions_2, distance, ordered) => {
     let proximity_positions = [];
 
     for (let step = 0; step <= distance; step++) {
-        proximity_positions = proximity_positions.concat(intersectionWithExactDistance(positions_1, positions_2, step, ordered));
+        proximity_positions = proximity_positions.concat(_intersectionWithExactDistance(positions_1, positions_2, step, ordered));
     }
 
     return proximity_positions;
@@ -161,7 +161,7 @@ const intersectTwoArrays = (arrays) => {
     return result;
 }
 
-const intersectTwoArraysWithDistance = (arrays, distance) => {
+const _intersectTwoArraysWithDistance = (arrays, distance) => {
     let result = [];
     let a = [...arrays[0]];
     let b = [...arrays[1]];
@@ -190,7 +190,8 @@ const intersectTwoArraysWithDistance = (arrays, distance) => {
 };
 
 const PositionalIntersector = {
-    intersectPositionalIndexRecords
+    intersectPositionalIndexRecords,
+    intersectTwoArrays
 };
 
 export default PositionalIntersector;

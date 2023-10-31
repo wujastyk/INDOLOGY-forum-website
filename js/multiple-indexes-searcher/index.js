@@ -87,10 +87,6 @@ export default class MultipleIndexesSearcher extends LitElement {
             state: true,
             type: Object,
         },
-        /** The flag for proximity search */
-        _isProximitySearch: {
-            type: Boolean,
-        },
     };
 
     static styles = css`
@@ -196,10 +192,9 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._searcher = {};
 
         // flags
-        this._isProximitySearch = false;
         this._searchTypes = {
             "prefix": false,
-            "levenstein_1": false,
+            "levenstein_1": true,//??
             "levenstein_2": false,
             "ngram": false,
         };
@@ -307,7 +302,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
                 <div id="search-input-container">
-                    <sl-input placeholder="Enter search string..." clearable value="unicode encoding"></sl-input>
+                    <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
                     <sl-button id="open-help-dialog">Help</sl-button>
                 </div>
@@ -359,7 +354,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // execute the selected searches and get the matching IDs
         await this._searcher.executeSearch(this._searchTypes);
-        
+
         // case when there exist an exact match for each search string
         if (this._searcher.allExactMatches) {
 
@@ -369,7 +364,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
             // display the paginated search results
             await this._displaySearchResultsPage(1);
-            
+
             // if it is any fuzzy search, display the suggestions
             if (this._searcher.isFuzzySearch) {
                 let suggestionStructures = new Map();
@@ -381,12 +376,14 @@ export default class MultipleIndexesSearcher extends LitElement {
             }
         } else {
             let suggestionStructures = new Map();
-            this._searcher.termAndOperatorsStructures.forEach((termStructure) => {
-                suggestionStructures.set(termStructure.term, termStructure.suggestions);
-            });
+            this._searcher.termAndOperatorsStructures
+                .filter(item => item.hasOwnProperty("term"))
+                .forEach((termStructure) => {
+                    suggestionStructures.set(termStructure.term, termStructure.suggestions);
+                });
 
             this._displaySuggestions(suggestionStructures);
-                        
+
             this.requestUpdate("_matchingDocumentNumber");
         }
     }
@@ -402,75 +399,41 @@ export default class MultipleIndexesSearcher extends LitElement {
     _searchBySuggestions = async () => {
         this._progressBar.style.display = "inline";
 
-        let selectedSuggestions = [...this._suggestionListContent
+        let selected_suggestions = [...this._suggestionListContent
             .querySelectorAll("div.suggestion-selected")]
             .map((selectedSuggestion) => selectedSuggestion.textContent.toLowerCase())
             .filter(Boolean);
-        let selectedSuggestionsNumber = selectedSuggestions.length;
+        let selectedSuggestionsNumber = selected_suggestions.length;
 
-        let commonInvertedIndexes = [];
-        let firstSelectedSuggestion = null;
-        let secondSelectedSuggestion = null;
+        const promises = this._searcher.termAndOperatorsStructures
+            .filter(item => item.hasOwnProperty("term"))
+            .map(async (termStructure, index) => {
+                // process only the suggestions
+                let selected_suggestion = selected_suggestions[index];
+                let current_term = termStructure.term;
+                if (selected_suggestion !== current_term) {
+                    // fetch the positional index record, if it is not fetched already
+                    let current_positional_index_record = termStructure.suggestions.get(selected_suggestion);
+                    if (current_positional_index_record.length === 0) {
+                        let positional_index_record = await this._searcher._fetchPositionalIndexRecord(this._searcher._words.indexOf(selected_suggestion));
+                        
+                        termStructure.suggestions.set(selected_suggestion, positional_index_record);
+                    }
 
-        // successive lookup for inverted indexes
-        switch (selectedSuggestionsNumber) {
-            // case with one selected suggestions
-            case 1:
-                let selectedSuggestion = selectedSuggestions[0];
-                commonInvertedIndexes = await fetch(new URL(this._calculateRelativeURL(selectedSuggestion), this.fulltextIndexBaseURL), {
-                    mode: "cors",
-                })
-                    .then(response => response.json());
-                break;
-            // case with two selected suggestions
-            case 2:
-                firstSelectedSuggestion = selectedSuggestions[0];
-                secondSelectedSuggestion = selectedSuggestions[1];
-                commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(this._calculateRelativeURL(firstSelectedSuggestion), this.fulltextIndexBaseURL), {
-                        mode: "cors",
-                    })
-                        .then(response => response.json()),
-                    fetch(new URL(this._calculateRelativeURL(secondSelectedSuggestion), this.fulltextIndexBaseURL), {
-                        mode: "cors",
-                    })
-                        .then(response => response.json())
-                ]);
-                break;
-            // case with at least three selected suggestions
-            default:
-                firstSelectedSuggestion = selectedSuggestions[0];
-                secondSelectedSuggestion = selectedSuggestions[1];
-                commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                    fetch(new URL(this._calculateRelativeURL(firstSelectedSuggestion), this.fulltextIndexBaseURL), {
-                        mode: "cors",
-                    })
-                        .then(response => response.json()),
-                    fetch(new URL(this._calculateRelativeURL(secondSelectedSuggestion), this.fulltextIndexBaseURL), {
-                        mode: "cors",
-                    })
-                        .then(response => response.json())
-                ]);
-
-                for (let i = 2; i < selectedSuggestionsNumber; i++) {
-                    let ithSelectedSuggestion = selectedSuggestions[i];
-                    commonInvertedIndexes = await this._intersectTwoArraysPromises([
-                        commonInvertedIndexes,
-                        fetch(new URL(this._calculateRelativeURL(ithSelectedSuggestion), this.fulltextIndexBaseURL), {
-                            mode: "cors",
-                        })
-                            .then(response => response.json())
-                    ]);
+                    termStructure.selected_suggestion = selected_suggestion;
                 }
-        }
+            });
 
-        this._matchingDocumentIDs = Object.keys(commonInvertedIndexes);
+        await Promise.all(promises);
+
+        this._matchingDocumentPositions = this._searcher.intersect();
+        this._matchingDocumentIDs = Array.from(this._matchingDocumentPositions.keys());
         this._matchingDocumentNumber = this._matchingDocumentIDs.length;
 
         // display the paginated search results
         this._paginationToolbar.reset();
-        this._searcher.markTerms = selectedSuggestions;
-
+        this._searcher.termsToHighlight = selected_suggestions;
+        console.log(this._searcher.termsToHighlight);
         await this._displaySearchResultsPage(1);
     }
 
@@ -540,13 +503,13 @@ export default class MultipleIndexesSearcher extends LitElement {
 
         // initialize the DOMString for suggestions
         let suggestionsDOMString = "";
-        console.log(suggestionStructures);
+
         // generate the form controls for suggestions
         for (let suggestionStructure of suggestionStructures) {
             let term = suggestionStructure[0];
             let suggestions = Array.from(suggestionStructure[1].keys());
 
-            suggestionsDOMString += this._suggestionListTemplate(suggestions.map(suggestion => this._suggestionTemplate({ term, suggestion })).join(""));
+            suggestionsDOMString += this._suggestionListTemplate(suggestions.map(suggestion => this._suggestionTemplate({ term, suggestion, "suggestions_number": suggestions.length })).join(""));
         }
 
         this._suggestionListContent.insertAdjacentHTML("beforeend", suggestionsDOMString);
@@ -556,10 +519,10 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     _displaySearchResultStatement() {
         if (this._matchingDocumentNumber !== 0) {
-            return `${this._matchingDocumentNumber} results for ${this._searcher.markTerms}`;
+            return `${this._matchingDocumentNumber} results for ${this._searcher.termsToHighlight}`;
         } else {
-            if (this._searcher.markTerms !== null) {
-                return `0 results for ${this._searcher.markTerms}`;
+            if (this._searcher.termsToHighlight !== null) {
+                return `0 results for ${this._searcher.termsToHighlight}`;
             } else {
                 return `0 results`;
             }
@@ -568,9 +531,10 @@ export default class MultipleIndexesSearcher extends LitElement {
 
     _suggestionTemplate = (data) => {
         let classValue = "suggestion";
-        if (data.term === data.suggestion) {
+        if (data.term === data.suggestion || data.suggestions_number === 1) {
             classValue += " suggestion-selected";
         }
+
         return `<div class="${classValue}">${data.suggestion}</div>`;
     }
 
