@@ -337,7 +337,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                         (addition, deletion, or replacement) to the correct word form;</li>
                     <li>ngram search, which uses an index built by segmenting the words in character bigrams (tokens of two
                         characters), will return suggestions that are different by the search term based upon a similarity threshold
-                        having a fixed value of 0.7 (70%)</li>
+                        having a fixed value of 0.7 (70%).</li>
                 </ol>        
                 <h5>Procedure for fuzzy search</h5>
                 <p>In case when the exact search dows not return any or helpful results, one can
