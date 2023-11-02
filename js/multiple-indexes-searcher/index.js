@@ -342,8 +342,12 @@ export default class MultipleIndexesSearcher extends LitElement {
                 <h5>Procedure for fuzzy search</h5>
                 <p>In case when the exact search dows not return any or helpful results, one can
                     extend the search by selecting one or more search types, to get more suggestions
-                    for each search term. Just select any combination of suggestions, and press the button
-                    <code>Search by suggestions</code>.
+                    for each search term. After every changing of the search type, one has to press the <code>Search</code>
+                    button again. The search types can be combined.
+                </p>
+                <p>
+                    When the suggestions are convenient, one has just to select any combination of suggestions, and
+                    press the button <code>Search by suggestions</code>.
                 </p>
                     <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
                 </sl-dialog>            
