@@ -392,7 +392,7 @@ export default class MultipleIndexesSearcher extends LitElement {
         this._searchResultContainer.innerHTML = "";
 
         // get the search string
-        let searchString = this._searchStringInput.value.trim();
+        let searchString = this._searchStringInput.value.toLowerCase().trim();
 
         // generate the search string abstract syntax tree
         let searchStringAST = queryStringParser.parse(searchString);
