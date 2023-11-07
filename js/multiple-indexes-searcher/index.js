@@ -94,13 +94,15 @@ export default class MultipleIndexesSearcher extends LitElement {
         :host(*) > div {
             display: flex;
             flex-direction: column; 
-            gap: 5px; 
+            gap: 5px;
+            align-items: center; 
         }            
         div#search-input-container {
             width: var(--sc-width, 500px);
             display: flex;
             gap: 10px;
             justify-content: center;
+            flex-wrap: wrap;
         }
         div#search-types-container {
             display: flex;
@@ -173,6 +175,14 @@ export default class MultipleIndexesSearcher extends LitElement {
             text-overflow: ellipsis;
             text-align: justify;
         }
+        /* small screen sizes */
+        @media only screen and (max-width: 664px) {
+            div#search-input-container {
+                width: 90vw;
+                background-color: red;
+                align-items: center;
+            }                      
+        }        
     `;
 
     constructor() {
@@ -317,7 +327,9 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <h3>Data storage</h3>
                     <p>The whole website is a static website, which means that its pages or search results are not generated
                         dynamically from a database, based upon a template, but are stored as they are in a filesystem, and
-                        served by a plain webserver. The same is valid for indexes used for searching.</p>
+                        served by a plain webserver. The same is valid for indexes used for searching. To
+                        query these indexes, a serverless search engine is used, which runs in browser.
+                    </p>
                     <p>A static website has, among other advantages: free hosting, fast rendering, and a better
                         protection against hacking.</p>
                     <h3>Data searching</h3>
@@ -693,6 +705,7 @@ export default class MultipleIndexesSearcher extends LitElement {
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
 /*
-search by suggestions
-load the data from the mailing list archive
+help dialog as separate file
+optimise for mobile terminals
+radio buttons for one difference and two differences
 */
