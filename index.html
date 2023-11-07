@@ -19,9 +19,6 @@
             customElements.whenDefined('sl-input'),
             customElements.whenDefined("sl-progress-bar")
         ]);
-
-        // Button, card, and rating are registered now! Add
-        // the `ready` class so the UI fades in.
         document.body.classList.add('ready');
     </script>
     <script type="module" src="js/multiple-indexes-searcher/index.js"></script>
@@ -52,15 +49,3 @@ https://wujastyk.github.io/INDOLOGY-forum-data/
 -->
 
 </html>
-<!--
-    reset the suggestion list
-
-    parse query string, https://blog.logrocket.com/building-rust-parser-pest-peg/s, and display the selected suggestions and operators
-
-    SEARCH GUIDE
-
-I changed this to "Different by one letter" and "Different by two letters", respectively. This means words that are different by the specified number of letters to the word that is searched for. The difference means> addition, deletion, or replacement of the specified number of letters.
-I will make a search guide, for sure. I was planning it.
-
-
--->

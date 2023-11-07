@@ -9,7 +9,6 @@ body.ready {
 }
 
 header {
-    /*background-image: linear-gradient(to right, #0284c7, #7fc1e2);*/
     background-color: #0284c7;
     padding: 2px 0;
 }
@@ -29,5 +28,38 @@ section.main {
 
 multiple-indexes-searcher {
     --sc-width: 60vw;
-    margin: auto;
+}
+
+/* small screen sizes */
+@media only screen and (max-width: 664px) {
+	body {
+		font-size: 0.875rem;
+		padding: 2px;
+	}
+
+	header {
+		font-size: 12px;
+	}
+
+	h1.title {
+        text-align: justify;
+        padding: 5px;
+	}
+}
+
+/* medium screen sizes */
+@media only screen and (max-width: 835px) {
+	body {
+		font-size: 0.875rem;
+		padding: 2px;
+	}
+
+	header {
+		font-size: 12px;
+	}
+
+	h1.title {
+        text-align: justify;
+        padding: 5px;
+	}    
 }

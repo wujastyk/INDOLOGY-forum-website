@@ -98,7 +98,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             align-items: center; 
         }            
         div#search-input-container {
-            width: var(--sc-width, 500px);
+            width: var(--sc-width, 60vw);
             display: flex;
             gap: 10px;
             justify-content: center;
@@ -179,9 +179,14 @@ export default class MultipleIndexesSearcher extends LitElement {
         @media only screen and (max-width: 664px) {
             div#search-input-container {
                 width: 90vw;
-                background-color: red;
                 align-items: center;
-            }                      
+            } 
+            div#search-types-container {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-evenly;
+                gap: 1px;
+            }                                 
         }        
     `;
 
