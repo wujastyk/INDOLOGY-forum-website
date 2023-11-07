@@ -152,7 +152,7 @@ export default class MultipleIndexesSearcher extends LitElement {
             color: #ffffff;
         }
         div#search-result-container {
-            width: var(--sc-width, 500px);
+            width: var(--sc-width, 60vw);
         }
         div#search-result-toolbar {
             background-color: #e9e9ed;
@@ -186,8 +186,26 @@ export default class MultipleIndexesSearcher extends LitElement {
                 flex-wrap: wrap;
                 justify-content: space-evenly;
                 gap: 1px;
-            }                                 
-        }        
+            } 
+            div#search-result-container {
+                width: 95vw;
+            }                                            
+        }
+        @media only screen and (max-width: 835px) {
+            div#search-input-container {
+                width: 90vw;
+                align-items: center;
+            } 
+            div#search-types-container {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-evenly;
+                gap: 1px;
+            } 
+            div#search-result-container {
+                width: 95vw;
+            }                                            
+        }                 
     `;
 
     constructor() {
@@ -418,7 +436,7 @@ export default class MultipleIndexesSearcher extends LitElement {
                     <div id="search-result-toolbar">
                         <output>${this._displaySearchResultStatement()}</output>
                     </div>
-                    <sc-pagination-toolbar page="1" total="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber : 1}" limit="${this.paginationLimit}"></sc-pagination-toolbar>
+                    <sc-pagination-toolbar page="1" total="${this._matchingDocumentNumber !== null ? this._matchingDocumentNumber : 1}" limit="${this.paginationLimit}" size="1"></sc-pagination-toolbar>
                     <div id="search-result-items"></div>                
                 </div>
             </div>        
@@ -711,6 +729,5 @@ export default class MultipleIndexesSearcher extends LitElement {
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
 /*
 help dialog as separate file
-optimise for mobile terminals
 radio buttons for one difference and two differences
 */

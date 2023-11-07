@@ -33,33 +33,35 @@ multiple-indexes-searcher {
 /* small screen sizes */
 @media only screen and (max-width: 664px) {
 	body {
-		font-size: 0.875rem;
+		font-size: 1.1rem;
 		padding: 2px;
 	}
 
 	header {
-		font-size: 12px;
+		font-size: 10px;
+        padding: 0 1px;
 	}
 
 	h1.title {
         text-align: justify;
-        padding: 5px;
+        padding: 1px;
 	}
 }
 
 /* medium screen sizes */
 @media only screen and (max-width: 835px) {
 	body {
-		font-size: 0.875rem;
+		font-size: 1.1rem;
 		padding: 2px;
 	}
 
 	header {
-		font-size: 12px;
+		font-size: 10px;
+        padding: 0 1px;
 	}
 
 	h1.title {
-        text-align: justify;
-        padding: 5px;
+        text-align: center;
+        padding: 1px;
 	}    
 }
