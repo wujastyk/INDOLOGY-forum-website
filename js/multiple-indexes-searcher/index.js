@@ -3,10 +3,13 @@ import { LitElement, css, html } from "https://cdn.jsdelivr.net/npm/lit/+esm";
 import "https://solirom.gitlab.io/web-components/pagination-toolbar/index.js";
 import Searcher from "./searcher.js";
 import "../query-string-parser/query-string-parser.js";
-import { documentation } from "../documentation/index.js";
 
 export default class MultipleIndexesSearcher extends LitElement {
     static properties = {
+        /** The URL for the documentation. */
+        documentationURL: {
+            attribute: "documentation-url"
+        },        
         /** Base URL for the exact index for words. */
         fulltextIndexBaseURL: {
             attribute: "fulltext-index-base-url"
@@ -263,10 +266,8 @@ export default class MultipleIndexesSearcher extends LitElement {
         // initialize the mark resolver
         this._markInstance = new Mark(this.renderRoot?.querySelector("div#search-result-items"));
 
-        // dialog
-        this.dialog = this.renderRoot?.querySelector(".dialog-overview");
-        this.renderRoot?.querySelector("sl-button#open-help-dialog").addEventListener("click", () => this.dialog.show());
-        this.renderRoot?.querySelector("sl-button#close-help-dialog").addEventListener("click", () => this.dialog.hide());
+        // open the documentation page
+        this.renderRoot?.querySelector("sl-button#open-documentation").addEventListener("click", () => window. open(this.documentationURL, "_blank"));
     }
 
     get _searchStringInput() {
@@ -327,92 +328,10 @@ export default class MultipleIndexesSearcher extends LitElement {
     render() {
         return html`
             <div>
-                <sl-dialog label="Help" class="dialog-overview">
-                    <h3>Description</h3>
-                    <p>This website allows online access to all the contents of the INDOLOGY Forum for Classical South Asian
-                        studies. This forum started as a mailing list in November, 1990.</p>
-            
-                    <h3>Data description</h3>
-                    <p>The data is in plain text format, and the main language used is English. Besides English,
-                        there are some other languages, as French, German, Sanskrit, etc., to name just a few, used to insert
-                        various words or expressions into the messages.
-                    </p>
-                    <h3>Data state</h3>
-                    <p>As of December 2022, the Forum contained 59,832 messages (69.4MB), and 325,565 words and
-                        mispelled words.
-                    </p>
-                    <h3>Data processing</h3>
-                    <p>In order to create the index for searching, some unused metadata and other redundant pieces of
-                        information were removed from the messages. However, the interface allows reading the raw contents
-                        of any message returned after a search, by pressing the link <code>full text</code>, located on
-                        the header of each message in the search result list.
-                    </p>
-                    <h3>Data storage</h3>
-                    <p>The whole website is a static website, which means that its pages or search results are not generated
-                        dynamically from a database, based upon a template, but are stored as they are in a filesystem, and
-                        served by a plain webserver. The same is valid for indexes used for searching. To
-                        query these indexes, a serverless search engine is used, which runs in browser.
-                    </p>
-                    <p>A static website has, among other advantages: free hosting, fast rendering, and a better
-                        protection against hacking.</p>
-                    <h3>Data searching</h3>
-                    <h5>Algorithms for fuzzy search</h5>
-                    <p>Due to the structure of the data, which contains mispelled words
-                        or simply words with non-ASCII characters that were replaced by the
-                        mailing list software with question marks, I found that, along with
-                        the exact search type, some fuzzy search algorithms are needed.
-                    </p>
-                    <p>
-                        For this reason, I have added the following fuzzy search types:
-                    </p>
-                    <ol>
-                        <li>prefix search, which will return all the words starting
-                            with the search term;</li>
-                        <li>two search types using Levenstein distance of one, respectively two differences
-                            (addition, deletion, or replacement) to the correct word form;</li>
-                        <li>ngram search, which uses an index built by segmenting the words in character bigrams (tokens of two
-                            characters), will return suggestions that are different by the search term based upon a similarity threshold
-                            having a fixed value of 0.7 (70%).</li>
-                    </ol>        
-                    <h5>Procedure for fuzzy search</h5>
-                    <p>In case when the exact search dows not return any or helpful results, one can
-                        extend the search by selecting one or more search types, to get more suggestions
-                        for each search term. After every changing of the search type, one has to press the <code>Search</code>
-                        button again. The search types can be combined.
-                    </p>
-                    <p>
-                        When the suggestions are convenient, one has just to select any combination of suggestions, and
-                        press the button <code>Search by suggestions</code>.
-                    </p>
-                    <h5>Search for expressions</h5>
-                    <p>
-                        Is it possible to search for expressions by surrounding them with double quotes.
-                    </p>
-                    <p>
-                        Is it also possible to make more refined search for expressions, by using the
-                        proximity search, which implies to find search terms separated a maximum or an exact
-                        number of words. For each of these searches, one can select if the words will be
-                        searched for in the same order they are entered, or not.
-                    </p>
-                    <p>
-                        The syntax is as follows:
-                    </p>
-                    <ol>
-                        <li>exact number of words, ordered, with two words between the search terms:
-                        <code>yoga o-exact/2 ayurveda</code></li>
-                        <li>exact number of words, unordered, with two words between the search terms:
-                        <code>yoga u-exact/2 ayurveda</code></li>
-                        <li>maximum number of words, ordered, with maximum two words between the search terms:
-                        <code>yoga o-max/2 ayurveda</code></li>
-                        <li>maximum number of words, unordered, with maximum two words between the search terms:
-                        <code>yoga u-max/2 ayurveda</code></li>
-                    </ol>
-                    <sl-button id="close-help-dialog" slot="footer" variant="primary">Close</sl-button>
-                </sl-dialog>            
                 <div id="search-input-container">
                     <sl-input placeholder="Enter search string..." clearable value=""></sl-input>
                     <sl-button id="exact-search" @click="${this._search}" variant="default" outline>Search</sl-button>
-                    <sl-button id="open-help-dialog">Help</sl-button>
+                    <sl-button id="open-documentation">Help</sl-button>
                 </div>
                 <div id="search-types-container">
                     <label>Search types:</label>
@@ -736,6 +655,3 @@ export default class MultipleIndexesSearcher extends LitElement {
 }
 
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
-/*
-help dialog as separate file
-*/
