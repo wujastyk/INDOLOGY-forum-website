@@ -499,8 +499,17 @@ export default class MultipleIndexesSearcher extends LitElement {
     _toggleSearchTypes = (event) => {
         let target = event.originalTarget;
         let value = target.value;
-        let checked = target.checked;
 
+        if (value === "levenstein_1" || value === "levenstein_2") {
+            let targetParent = target.parentNode;
+            let other_levenstein_value = (value === "levenstein_1") ? "levenstein_2" : "levenstein_1";
+            let other_levenstein_checkbox = targetParent.querySelector(`sl-checkbox[value = ${other_levenstein_value}]`)
+
+            this._searchTypes[value] = false;
+            other_levenstein_checkbox.checked = false;
+        }
+
+        let checked = target.checked;
         this._searchTypes[value] = checked;
     }
 
@@ -729,5 +738,4 @@ export default class MultipleIndexesSearcher extends LitElement {
 window.customElements.define("multiple-indexes-searcher", MultipleIndexesSearcher);
 /*
 help dialog as separate file
-radio buttons for one difference and two differences
 */
