@@ -48,7 +48,7 @@
     <style>
         iframe {
             display: block;
-            margin-top: 100px;
+            margin: 100px auto;
         }
     </style>
     <script>
@@ -58,6 +58,14 @@
                 window.goatcounter.visit_count({
                     append: "body",
                     no_branding: true,
+                    style: `
+                        div {
+                            border-color: #fff;
+                            background-color: #0284c7;
+                            color: #fff;
+                            border-radius: 10px;                          
+                        }
+                    `
                 });
             }
         }, 100);
