@@ -45,6 +45,22 @@
     <solirom-loading-spinner></solirom-loading-spinner>
     <script data-goatcounter="https://indology.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
+    <style>
+        iframe {
+            margin: auto;
+        }
+    </style>
+    <script>
+        var t = setInterval(function() {
+            if (window.goatcounter && window.goatcounter.visit_count) {
+                clearInterval(t);
+                window.goatcounter.visit_count({
+                    append: "body",
+                    no_branding: true,
+                });
+            }
+        }, 100);
+    </script>        
 </body>
 <!-- http://localhost:8080/
 https://wujastyk.github.io/INDOLOGY-forum-data/
