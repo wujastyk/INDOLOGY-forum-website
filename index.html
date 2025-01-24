@@ -28,23 +28,22 @@
 <body>
     <header>
         <h1 class="title">Search interface for the INDOLOGY Forum for Classical South Asian studies</h1>
+        <h3 class="subtitle">(November 1990 - December 2024)</h3>
     </header>
     <section class="main">
-        <multiple-indexes-searcher fulltext-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/so-fulltext-static/"
+        <multiple-indexes-searcher
+            fulltext-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/so-fulltext-static/"
             terms-fst-map-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/s-fst-map/index.fst"
             terms-json-static-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/s-json-static/index.fst"
             ngram-index-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/terms/s-ngram-static/"
             documents-base-iri="https://wujastyk.github.io/INDOLOGY-forum-data/data/"
             document-relative-iris-url="https://wujastyk.github.io/INDOLOGY-forum-data/indexes/text-relative-iris/s-json-static/index.json"
             raw-documents-base-url="https://wujastyk.github.io/INDOLOGY-forum-data/raw-data/"
-            ngram-similarity-threshold="0.7"
-            pagination-limit="10"
-            documentation-url="js/documentation/index.html">
+            ngram-similarity-threshold="0.7" pagination-limit="10" documentation-url="js/documentation/index.html">
         </multiple-indexes-searcher>
     </section>
     <solirom-loading-spinner></solirom-loading-spinner>
-    <script data-goatcounter="https://indology.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
+    <script data-goatcounter="https://indology.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
     <style>
         iframe {
             display: block;
@@ -52,7 +51,7 @@
         }
     </style>
     <script>
-        var t = setInterval(function() {
+        var t = setInterval(function () {
             if (window.goatcounter && window.goatcounter.visit_count) {
                 clearInterval(t);
                 window.goatcounter.visit_count({
@@ -64,13 +63,13 @@
                             border-color: #fff;
                             background-color: #0284c7;
                             color: #fff;
-                            border-radius: 10px;                          
+                            border-radius: 10px;
                         }
                     `
                 });
             }
         }, 100);
-    </script>        
+    </script>
 </body>
 <!-- http://localhost:8080/
 https://wujastyk.github.io/INDOLOGY-forum-data/
