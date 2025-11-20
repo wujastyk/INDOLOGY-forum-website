@@ -14,7 +14,7 @@ await init();
  * @property {boolean} isFuzzySearch
  * @property {URL} exactIndexBaseURL
  * @property {URL} termsFSTmapURL
- * @property {URl} ngramIndexBaseURL
+ * @property {URL} ngramIndexBaseURL
  * @property {Number} ngramSimilarityThreshold
  * @property {Array.<string>} _words
  * @method
